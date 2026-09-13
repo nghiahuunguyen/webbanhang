@@ -1,96 +1,119 @@
 <?php 
-// Thiết lập múi giờ Việt Nam (GMT+7)
 date_default_timezone_set('Asia/Ho_Chi_Minh');
 session_start();
 require_once('../../database/dbhelper.php');
 $page_title = 'Thêm Mới Sản Phẩm';
+
 $error = '';
 $title = '';
 $category_id = '';
-$price = '';
-$discount = '';
+$brand_id = '';
 $description = '';
 
-// Lấy danh mục sản phẩm (deleted = 0)
-$categories = executeResult("SELECT * FROM category WHERE deleted = 0 ORDER BY name ASC");
+// Lấy danh mục và hãng chưa bị xóa (deleted = 0)
+$categories = executeResult("SELECT * FROM Category WHERE deleted = 0 ORDER BY name ASC");
+$brands     = executeResult("SELECT * FROM Brand WHERE deleted = 0 ORDER BY name ASC");
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $title         = trim($_POST['title'] ?? '');
-    $category_id   = intval($_POST['category_id'] ?? 0);
-    $price         = intval($_POST['price'] ?? 0);
-    $discount      = !empty($_POST['discount']) ? intval($_POST['discount']) : 0;
-    $description   = trim($_POST['description'] ?? '');
+    $title       = trim($_POST['title'] ?? '');
+    $category_id = intval($_POST['category_id'] ?? 0);
+    $brand_id    = intval($_POST['brand_id'] ?? 0);
+    $description = trim($_POST['description'] ?? '');
 
-    // Kiểm tra tính hợp lệ cơ bản
+    // Thu nhận mảng biến thể
+    $v_color    = $_POST['color'] ?? [];
+    $v_cpu      = $_POST['cpu'] ?? [];
+    $v_ram      = $_POST['ram'] ?? [];
+    $v_storage  = $_POST['storage'] ?? [];
+    $v_gpu      = $_POST['gpu'] ?? [];
+    $v_price    = $_POST['price'] ?? [];
+    $v_discount = $_POST['discount'] ?? [];
+    $v_stock    = $_POST['stock'] ?? [];
+
     if (empty($title)) {
-        $error = 'Vui lòng nhập tên sản phẩm!';
+        $error = 'Vui lòng nhập tên dòng sản phẩm!';
     } elseif ($category_id <= 0) {
         $error = 'Vui lòng chọn danh mục sản phẩm!';
-    } elseif ($price <= 0) {
-        $error = 'Giá bán phải lớn hơn 0!';
-    } elseif ($discount > 0 && $discount >= $price) {
-        $error = 'Giá giảm phải nhỏ hơn giá bán gốc!';
+    } elseif ($brand_id <= 0) {
+        $error = 'Vui lòng chọn thương hiệu / hãng!';
     } elseif (!isset($_FILES['thumbnail']) || $_FILES['thumbnail']['error'] !== 0) {
-        $error = 'Vui lòng chọn file ảnh đại diện!';
+        $error = 'Vui lòng chọn ảnh đại diện cho sản phẩm!';
+    } elseif (empty($v_price) || intval($v_price[0] ?? 0) <= 0) {
+        $error = 'Vui lòng nhập ít nhất 1 phiên bản cấu hình có giá bán hợp lệ!';
     } else {
-        // Đường dẫn thư mục lưu ảnh: webbanhang/img/product/
         $upload_dir = '../../img/product/';
-        
-        // Tạo thư mục nếu chưa tồn tại
         if (!is_dir($upload_dir)) {
             mkdir($upload_dir, 0777, true);
         }
 
-        // 1. Xử lý lưu Ảnh đại diện (Thumbnail)
+        // 1. Tải lên và lưu Thumbnail đại diện
         $thumb_file = $_FILES['thumbnail'];
         $ext = pathinfo($thumb_file['name'], PATHINFO_EXTENSION);
-        // Đặt tên file ngẫu nhiên theo thời gian để tránh trùng tên ảnh
         $thumb_name = time() . '_' . uniqid() . '.' . strtolower($ext);
         $thumb_target = $upload_dir . $thumb_name;
 
         if (move_uploaded_file($thumb_file['tmp_name'], $thumb_target)) {
-            // Đường dẫn ảnh lưu vào Database (để hiển thị ngoài web)
-            $db_thumbnail = 'img/product/' . $thumb_name;
-            
+            $db_thumbnail     = 'img/product/' . $thumb_name;
             $safe_title       = str_replace("'", "\'", $title);
-            $safe_thumbnail   = str_replace("'", "\'", $db_thumbnail);
             $safe_description = str_replace("'", "\'", $description);
             $created_at       = date('Y-m-d H:i:s');
             $updated_at       = date('Y-m-d H:i:s');
 
-            // 2. Thêm vào bảng Product
-            $sql_product = "INSERT INTO Product (category_id, title, price, discount, thumbnail, description, created_at, updated_at, deleted) 
-                            VALUES ('$category_id', '$safe_title', '$price', '$discount', '$safe_thumbnail', '$safe_description', '$created_at', '$updated_at', 0)";
-            execute($sql_product);
+            // 2. Chèn vào bảng Product
+            $sql_prod = "INSERT INTO Product (category_id, brand_id, title, thumbnail, description, created_at, updated_at, deleted)
+                         VALUES ('$category_id', '$brand_id', '$safe_title', '$db_thumbnail', '$safe_description', '$created_at', '$updated_at', 0)";
+            execute($sql_prod);
 
             // Lấy ID sản phẩm vừa tạo
-            $last_product = executeResult("SELECT id FROM Product ORDER BY id DESC LIMIT 1", true);
-            $product_id = $last_product['id'] ?? 0;
+            $last_p = executeResult("SELECT id FROM Product ORDER BY id DESC LIMIT 1", true);
+            $product_id = intval($last_p['id'] ?? 0);
 
-            // 3. Xử lý lưu danh sách Ảnh phụ (Gallery)
-            if ($product_id > 0 && isset($_FILES['galleries'])) {
-                $total_files = count($_FILES['galleries']['name']);
-                
-                for ($i = 0; $i < $total_files; $i++) {
-                    if ($_FILES['galleries']['error'][$i] === 0) {
-                        $gallery_ext = pathinfo($_FILES['galleries']['name'][$i], PATHINFO_EXTENSION);
-                        $gallery_name = time() . '_' . uniqid() . '_' . $i . '.' . strtolower($gallery_ext);
-                        $gallery_target = $upload_dir . $gallery_name;
+            if ($product_id > 0) {
+                // 3. Chèn toàn bộ các biến thể vào bảng Product_Variant
+                $total_variants = count($v_price);
+                for ($i = 0; $i < $total_variants; $i++) {
+                    $cur_price = intval($v_price[$i] ?? 0);
+                    if ($cur_price <= 0) continue;
 
-                        if (move_uploaded_file($_FILES['galleries']['tmp_name'][$i], $gallery_target)) {
-                            $db_gallery_path = 'img/product/' . $gallery_name;
-                            $sql_gallery = "INSERT INTO Galery (product_id, thumbnail) VALUES ('$product_id', '$db_gallery_path')";
-                            execute($sql_gallery);
+                    $color_val   = trim($v_color[$i] ?? '');
+                    $cpu_val     = trim($v_cpu[$i] ?? '');
+                    $ram_val     = trim($v_ram[$i] ?? '');
+                    $storage_val = trim($v_storage[$i] ?? '');
+                    $gpu_val     = trim($v_gpu[$i] ?? '');
+                    $disc_val    = intval($v_discount[$i] ?? 0);
+                    $stock_val   = intval($v_stock[$i] ?? 0);
+
+                    // Tạo mã SKU tự động
+                    $sku_val = strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', $title), 0, 4)) . '-' . $product_id . '-' . ($i + 1);
+
+                    $sql_variant = "INSERT INTO Product_Variant (product_id, sku, color, cpu, ram, storage, gpu, price, discount, stock_quantity, deleted)
+                                    VALUES ('$product_id', '$sku_val', '$color_val', '$cpu_val', '$ram_val', '$storage_val', '$gpu_val', '$cur_price', '$disc_val', '$stock_val', 0)";
+                    execute($sql_variant);
+                }
+
+                // 4. Lưu danh sách ảnh vào bảng Galery
+                if (isset($_FILES['galleries']) && !empty($_FILES['galleries']['name'][0])) {
+                    $total_galls = count($_FILES['galleries']['name']);
+                    for ($k = 0; $k < $total_galls; $k++) {
+                        if ($_FILES['galleries']['error'][$k] === 0) {
+                            $g_ext = pathinfo($_FILES['galleries']['name'][$k], PATHINFO_EXTENSION);
+                            $g_name = time() . '_' . uniqid() . '_' . $k . '.' . strtolower($g_ext);
+                            $g_target = $upload_dir . $g_name;
+
+                            if (move_uploaded_file($_FILES['galleries']['tmp_name'][$k], $g_target)) {
+                                $db_g_path = 'img/product/' . $g_name;
+                                execute("INSERT INTO Galery (product_id, variant_id, thumbnail) VALUES ('$product_id', NULL, '$db_g_path')");
+                            }
                         }
                     }
                 }
-            }
 
-            $_SESSION['success_msg'] = "Thêm sản phẩm mới thành công!";
-            header('Location: index.php');
-            die();
+                $_SESSION['success_msg'] = "Thêm sản phẩm và cấu hình thành công!";
+                header('Location: index.php');
+                die();
+            }
         } else {
-            $error = 'Tải ảnh đại diện lên máy chủ thất bại!';
+            $error = 'Không thể lưu file ảnh đại diện lên máy chủ!';
         }
     }
 }
@@ -99,7 +122,7 @@ include '../layout/head.php';
 include '../layout/sidebar.php'; 
 ?>
 
-<!-- TOAST THÔNG BÁO LỖI GÓC PHẢI TRÊN (TỰ ẨN 3S) -->
+<!-- TOAST THÔNG BÁO LỖI -->
 <?php if (!empty($error)): ?>
   <div id="toast-wrapper" style="position: fixed; top: 20px; right: 20px; z-index: 99999; min-width: 320px; transition: all 0.5s ease;">
     <div class="toast show shadow-lg border-0" role="alert">
@@ -122,29 +145,26 @@ include '../layout/sidebar.php';
 <main role="main" class="col-md-9 ml-sm-auto col-lg-10 px-md-4 py-3">
   <?php include '../layout/topbar.php'; ?>
 
-  <div class="custom-card">
+  <div class="custom-card mb-4">
     <div class="p-3 px-4 d-flex justify-content-between align-items-center border-bottom">
-      <h5 class="font-weight-bold mb-0 text-dark">Thêm Mới Sản Phẩm</h5>
+      <h5 class="font-weight-bold mb-0 text-dark">Thêm Mới Sản Phẩm & Biến Thể Cấu Hình</h5>
       <a href="index.php" class="btn btn-sm btn-secondary font-weight-bold">
         <i class="fas fa-arrow-left mr-1"></i> Quay lại
       </a>
     </div>
 
-    <!-- Quan trọng: bắt buộc có enctype="multipart/form-data" -->
     <form class="p-4" method="POST" enctype="multipart/form-data" novalidate>
+      
+      <!-- KHỐI 1: THÔNG TIN CHUNG SẢN PHẨM -->
+      <h6 class="text-primary font-weight-bold text-uppercase small tracking-wider mb-3">1. Thông tin chung</h6>
       <div class="form-row">
-        <div class="form-group col-md-8">
+        <div class="form-group col-md-6">
           <label class="font-weight-bold">Tên sản phẩm <span class="text-danger">*</span></label>
-          <input type="text" 
-                 name="title" 
-                 class="form-control <?= (!empty($error) && empty($title)) ? 'is-invalid' : '' ?>" 
-                 value="<?= htmlspecialchars($title) ?>" 
-                 placeholder="Nhập tên sản phẩm..." 
-                 required autofocus>
+          <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($title) ?>" placeholder="VD: iPhone 15 Pro Max, Laptop ROG Zephyrus..." required autofocus>
         </div>
-        <div class="form-group col-md-4">
+        <div class="form-group col-md-3">
           <label class="font-weight-bold">Danh mục <span class="text-danger">*</span></label>
-          <select name="category_id" class="form-control <?= (!empty($error) && empty($category_id)) ? 'is-invalid' : '' ?>" required>
+          <select name="category_id" class="form-control" required>
             <option value="">-- Chọn danh mục --</option>
             <?php foreach ($categories as $cat): ?>
               <option value="<?= $cat['id'] ?>" <?= ($category_id == $cat['id']) ? 'selected' : '' ?>>
@@ -153,56 +173,85 @@ include '../layout/sidebar.php';
             <?php endforeach; ?>
           </select>
         </div>
+        <div class="form-group col-md-3">
+          <label class="font-weight-bold">Hãng sản xuất <span class="text-danger">*</span></label>
+          <select name="brand_id" class="form-control" required>
+            <option value="">-- Chọn thương hiệu --</option>
+            <?php foreach ($brands as $b): ?>
+              <option value="<?= $b['id'] ?>" <?= ($brand_id == $b['id']) ? 'selected' : '' ?>>
+                <?= htmlspecialchars($b['name']) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
       </div>
 
       <div class="form-row">
         <div class="form-group col-md-6">
-          <label class="font-weight-bold">Giá bán gốc (VNĐ) <span class="text-danger">*</span></label>
-          <input type="number" 
-                 name="price" 
-                 class="form-control <?= (!empty($error) && $price <= 0) ? 'is-invalid' : '' ?>" 
-                 value="<?= htmlspecialchars($price) ?>" 
-                 placeholder="VD: 500000" 
-                 required>
+          <label class="font-weight-bold">Ảnh đại diện chính (Thumbnail) <span class="text-danger">*</span></label>
+          <input type="file" name="thumbnail" class="form-control-file border p-1 rounded" accept="image/*" required>
         </div>
         <div class="form-group col-md-6">
-          <label class="font-weight-bold">Giá khuyến mãi (VNĐ)</label>
-          <input type="number" 
-                 name="discount" 
-                 class="form-control" 
-                 value="<?= htmlspecialchars($discount ?: '') ?>" 
-                 placeholder="VD: 450000">
+          <label class="font-weight-bold">Bộ sưu tập ảnh chi tiết (Chọn nhiều ảnh)</label>
+          <input type="file" name="galleries[]" class="form-control-file border p-1 rounded" accept="image/*" multiple>
         </div>
       </div>
 
-      <!-- Chọn file Ảnh đại diện -->
-      <div class="form-group">
-        <label class="font-weight-bold">Ảnh đại diện (Thumbnail) <span class="text-danger">*</span></label>
-        <input type="file" 
-               name="thumbnail" 
-               class="form-control-file border p-1 rounded" 
-               accept="image/*" 
-               required>
+      <div class="form-group mb-4">
+        <label class="font-weight-bold">Mô tả tóm tắt tính năng</label>
+        <textarea name="description" rows="3" class="form-control" placeholder="Nhập tóm tắt mô tả nổi bật về màn hình, pin, cổng kết nối..."><?= htmlspecialchars($description) ?></textarea>
       </div>
 
-      <!-- Chọn nhiều file Ảnh phụ -->
-      <div class="form-group">
-        <label class="font-weight-bold">Thư viện ảnh bổ sung (Chọn nhiều ảnh cùng lúc)</label>
-        <input type="file" 
-               name="galleries[]" 
-               class="form-control-file border p-1 rounded" 
-               accept="image/*" 
-               multiple>
-        <small class="text-muted">Nhấn giữ phím Ctrl hoặc kéo chọn nhiều ảnh để tải lên cùng lúc.</small>
+      <hr class="my-4">
+
+      <!-- KHỐI 2: BIẾN THỂ CẤU HÌNH & BẢNG GIÁ ĐỘNG -->
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h6 class="text-primary font-weight-bold text-uppercase small tracking-wider mb-0">2. Cấu hình, Màu sắc & Giá bán</h6>
+          <small class="text-muted">Nhập các phiên bản lựa chọn của máy (CPU, RAM, Ổ cứng, GPU, Màu sắc, Giá tương ứng)</small>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-primary font-weight-bold" id="btnAddVariant">
+          <i class="fas fa-plus mr-1"></i> Thêm phiên bản
+        </button>
       </div>
 
-      <div class="form-group">
-        <label class="font-weight-bold">Mô tả sản phẩm</label>
-        <textarea name="description" rows="4" class="form-control" placeholder="Mô tả thông số, đặc điểm chi tiết..."><?= htmlspecialchars($description) ?></textarea>
+      <div class="table-responsive mb-4">
+        <table class="table table-bordered table-sm text-center mb-0" id="variantTable">
+          <thead class="thead-light">
+            <tr>
+              <th style="min-width: 120px;">Màu sắc</th>
+              <th style="min-width: 130px;">CPU</th>
+              <th style="min-width: 90px;">RAM</th>
+              <th style="min-width: 110px;">Ổ cứng</th>
+              <th style="min-width: 120px;">GPU (Nếu có)</th>
+              <th style="min-width: 130px;">Giá bán (VNĐ) <span class="text-danger">*</span></th>
+              <th style="min-width: 120px;">Giảm giá</th>
+              <th style="min-width: 90px;">Tồn kho</th>
+              <th width="50px">Xóa</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><input type="text" name="color[]" class="form-control form-control-sm" placeholder="Titan Tự Nhiên"></td>
+              <td><input type="text" name="cpu[]" class="form-control form-control-sm" placeholder="Core i7 13700H / A17 Pro"></td>
+              <td><input type="text" name="ram[]" class="form-control form-control-sm" placeholder="8GB"></td>
+              <td><input type="text" name="storage[]" class="form-control form-control-sm" placeholder="256GB"></td>
+              <td><input type="text" name="gpu[]" class="form-control form-control-sm" placeholder="RTX 4060"></td>
+              <td><input type="number" name="price[]" class="form-control form-control-sm font-weight-bold" placeholder="VD: 25000000" required></td>
+              <td><input type="number" name="discount[]" class="form-control form-control-sm" placeholder="VD: 1500000" value="0"></td>
+              <td><input type="number" name="stock[]" class="form-control form-control-sm" placeholder="10" value="10"></td>
+              <td class="align-middle text-center">
+                <button type="button" class="btn btn-sm btn-outline-danger btn-remove-row" disabled>
+                  <i class="fas fa-trash-alt"></i>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
-      <button type="submit" class="btn btn-primary px-4 font-weight-bold">
-        <i class="fas fa-plus mr-1"></i> Lưu sản phẩm
+      <button type="submit" class="btn btn-primary px-4 font-weight-bold shadow-sm">
+        <i class="fas fa-save mr-1"></i> Lưu Toàn Bộ Sản Phẩm
       </button>
     </form>
   </div>
@@ -210,17 +259,51 @@ include '../layout/sidebar.php';
 
 <?php include '../layout/scripts.php'; ?>
 
-<!-- SCRIPT TỰ BIẾN MẤT THÔNG BÁO SAU 3 GIÂY -->
 <script>
+  // Thêm phiên bản cấu hình động
+  document.getElementById('btnAddVariant').addEventListener('click', function () {
+    var tableBody = document.querySelector('#variantTable tbody');
+    var newRow = document.createElement('tr');
+    newRow.innerHTML = `
+      <td><input type="text" name="color[]" class="form-control form-control-sm" placeholder="Đen Nhám"></td>
+      <td><input type="text" name="cpu[]" class="form-control form-control-sm" placeholder="Core i9 13900H / M3 Max"></td>
+      <td><input type="text" name="ram[]" class="form-control form-control-sm" placeholder="16GB"></td>
+      <td><input type="text" name="storage[]" class="form-control form-control-sm" placeholder="512GB"></td>
+      <td><input type="text" name="gpu[]" class="form-control form-control-sm" placeholder="RTX 4070"></td>
+      <td><input type="number" name="price[]" class="form-control form-control-sm font-weight-bold" placeholder="VD: 28000000" required></td>
+      <td><input type="number" name="discount[]" class="form-control form-control-sm" placeholder="VD: 2000000" value="0"></td>
+      <td><input type="number" name="stock[]" class="form-control form-control-sm" placeholder="10" value="10"></td>
+      <td class="align-middle text-center">
+        <button type="button" class="btn btn-sm btn-outline-danger btn-remove-row">
+          <i class="fas fa-trash-alt"></i>
+        </button>
+      </td>
+    `;
+    tableBody.appendChild(newRow);
+    attachRemoveEvent();
+  });
+
+  function attachRemoveEvent() {
+    var removeButtons = document.querySelectorAll('.btn-remove-row');
+    removeButtons.forEach(function (btn) {
+      btn.onclick = function () {
+        var row = this.closest('tr');
+        var tbody = row.parentElement;
+        if (tbody.children.length > 1) {
+          row.remove();
+        }
+      };
+    });
+  }
+
+  // Tự động tắt Toast thông báo
   window.addEventListener('load', function() {
     var toastBox = document.getElementById('toast-wrapper');
     if (toastBox) {
       setTimeout(function() {
         toastBox.style.opacity = '0';
         toastBox.style.transform = 'translateX(50px)';
-        setTimeout(function() {
-          toastBox.remove();
-        }, 500);
+        setTimeout(function() { toastBox.remove(); }, 500);
       }, 3000);
     }
   });

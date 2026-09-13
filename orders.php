@@ -1,5 +1,21 @@
 <?php 
-  include 'includes/header.php'; 
+  date_default_timezone_set('Asia/Ho_Chi_Minh');
+  session_start();
+  require_once('database/dbhelper.php');
+
+  // Kiểm tra nếu chưa đăng nhập thì chuyển về trang login
+  if (!isset($_SESSION['user'])) {
+      header('Location: login.php');
+      exit();
+  }
+
+  // Khai báo biến người dùng hiện tại từ session
+  $currentUser = $_SESSION['user'];
+  $user_id     = $currentUser['id'];
+  $toast_type  = '';
+  $toast_message = '';
+
+  include 'includes/header.php';
 ?>
 
   <main class="container my-5">
@@ -8,14 +24,16 @@
       <div class="col-lg-3 col-md-4 mb-4">
         <div class="card border-0 rounded-2xl shadow-soft p-3 bg-white">
           <div class="text-center py-3 border-bottom">
-            <div class="position-relative d-inline-block mb-3">
-              <img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80" 
-                   class="rounded-circle border" style="width: 88px; height: 88px; object-fit: cover;" alt="Avatar">
+            <div class="btn-icon bg-light text-primary rounded-circle mx-auto mb-2 border" style="width: 56px; height: 56px; font-size: 1.4rem;">
+              <i class="far fa-user"></i>
             </div>
-            <h6 class="font-weight-bold text-dark mb-0">Nguyễn Văn A</h6>
-            <span class="badge badge-pill-soft bg-warning text-dark mt-1 font-weight-bold">Thành viên Vàng</span>
+            <h6 class="font-weight-bold text-dark mb-1">
+              <?= htmlspecialchars($currentUser['fullname'] ?? 'Khách hàng') ?>
+            </h6>
+            <span class="badge badge-pill-soft bg-warning text-dark font-weight-bold">Thành viên NovaShop</span>
           </div>
 
+          <!-- Danh sách Menu Sidebar -->
           <div class="list-group list-group-flush pt-2">
             <a href="profile.php" class="list-group-item list-group-item-action border-0 rounded-pill-custom py-2 px-3 text-secondary">
               <i class="fas fa-user-circle mr-2"></i> Hồ sơ cá nhân
@@ -23,9 +41,7 @@
             <a href="orders.php" class="list-group-item list-group-item-action border-0 rounded-pill-custom py-2 px-3 font-weight-bold text-primary active bg-light">
               <i class="fas fa-box-open mr-2"></i> Lịch sử đơn hàng
             </a>
-            
-            </a>
-            <a href="login.php" class="list-group-item list-group-item-action border-0 rounded-pill-custom py-2 px-3 text-danger mt-3">
+            <a href="logout.php" class="list-group-item list-group-item-action border-0 rounded-pill-custom py-2 px-3 text-danger mt-3 font-weight-semibold">
               <i class="fas fa-sign-out-alt mr-2"></i> Đăng xuất
             </a>
           </div>

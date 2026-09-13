@@ -1,3 +1,12 @@
+<?php
+  if (session_status() === PHP_SESSION_NONE) {
+      session_start();
+  }
+  // Nhúng dbhelper để truy vấn danh mục động từ CSDL
+  require_once __DIR__ . '/../database/dbhelper.php';
+  // Lấy danh sách danh mục hợp lệ (chưa bị xóa)
+  $nav_categories = executeResult("SELECT * FROM Category WHERE deleted = 0 ORDER BY name ASC");
+?>
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -84,7 +93,7 @@
       <div class="row align-items-center">
         <!-- Logo -->
         <div class="col-md-3 col-6">
-          <a class="font-weight-bold text-dark h4 mb-0 text-decoration-none d-flex align-items-center" href="#">
+          <a class="font-weight-bold text-dark h4 mb-0 text-decoration-none d-flex align-items-center" href="index.php">
             <span class="badge badge-primary mr-2 rounded-circle p-2"><i class="fas fa-cube text-white"></i></span>
             NOVA<span class="text-primary font-weight-extrabold">SHOP</span>
           </a>
@@ -92,19 +101,31 @@
 
         <!-- Thanh tìm kiếm hiện đại -->
         <div class="col-md-6 d-none d-md-block">
-          <form class="position-relative">
-            <input type="text" class="form-control rounded-pill-custom bg-light border-0 py-2 pl-4 pr-5 text-sm" placeholder="Tìm tai nghe, bàn phím, laptop..." style="height: 46px;">
-            <button class="btn btn-primary rounded-circle position-absolute" style="top: 4px; right: 5px; width: 38px; height: 38px; padding: 0;" type="button">
+          <form class="position-relative" action="search.php" method="GET">
+            <input type="text" name="q" class="form-control rounded-pill-custom bg-light border-0 py-2 pl-4 pr-5 text-sm" placeholder="Tìm tai nghe, bàn phím, laptop..." style="height: 46px;">
+            <button class="btn btn-primary rounded-circle position-absolute" style="top: 4px; right: 5px; width: 38px; height: 38px; padding: 0;" type="submit">
               <i class="fas fa-search"></i>
             </button>
           </form>
         </div>
 
         <!-- User & Giỏ hàng -->
-        <div class="col-md-3 col-6 text-right">
-          <a href="login.php" class="btn btn-light btn-icon text-dark mr-2 border" title="Tài khoản">
-            <i class="far fa-user"></i>
-          </a>
+        <div class="col-md-3 col-6 text-right d-flex align-items-center justify-content-end">
+          <?php if (isset($_SESSION['user'])): ?>
+            <!-- ĐÃ ĐĂNG NHẬP -->
+            <a href="profile.php" class="text-dark small font-weight-bold mr-2 text-decoration-none text-truncate" style="max-width: 130px;" title="Xem hồ sơ">
+              Chào, <?= htmlspecialchars($_SESSION['user']['fullname']) ?>
+            </a>
+            <a href="profile.php" class="btn btn-light btn-icon text-dark mr-2 border" title="Hồ sơ cá nhân">
+              <i class="far fa-user"></i>
+            </a>
+          <?php else: ?>
+            <!-- CHƯA ĐĂNG NHẬP -->
+            <a href="login.php" class="btn btn-light btn-icon text-dark mr-2 border" title="Đăng nhập">
+              <i class="far fa-user"></i>
+            </a>
+          <?php endif; ?>
+
           <a href="cart.php" class="btn btn-primary btn-icon position-relative shadow-sm" title="Giỏ hàng">
             <i class="fas fa-shopping-bag"></i>
             <span class="badge badge-danger position-absolute font-weight-bold" style="top: -4px; right: -4px; border-radius: 10px; font-size: 0.7rem;">3</span>
@@ -113,7 +134,7 @@
       </div>
     </div>
 
-    <!-- Thanh Menu / Phân Loại Sản Phẩm -->
+    <!-- Thanh Menu / Phân Loại Sản Phẩm Động Từ CSDL -->
     <nav class="navbar navbar-expand-md navbar-light bg-white border-top py-2">
       <div class="container">
         <button class="navbar-toggler border-0" type="button" data-toggle="collapse" data-target="#productNav">
@@ -122,20 +143,35 @@
 
         <div class="collapse navbar-collapse" id="productNav">
           <ul class="navbar-nav font-weight-medium">
-            <li class="nav-item active"><a class="nav-link text-primary font-weight-bold" href="#">Trang chủ</a></li>
+            <li class="nav-item active"><a class="nav-link text-primary font-weight-bold" href="index.php">Trang chủ</a></li>
+            
+            <!-- Dropdown nạp danh mục động -->
             <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle text-dark" href="#" id="catDrop" data-toggle="dropdown">Danh mục sản phẩm</a>
-              <div class="dropdown-menu border-0 shadow-soft rounded-2xl p-2">
-                <a class="dropdown-item rounded-pill-custom py-2" href="#"><i class="fas fa-laptop text-muted mr-2"></i>Laptop & Máy tính</a>
-                <a class="dropdown-item rounded-pill-custom py-2" href="#"><i class="fas fa-mobile-alt text-muted mr-2"></i>Điện thoại di động</a>
-                <a class="dropdown-item rounded-pill-custom py-2" href="#"><i class="fas fa-headphones text-muted mr-2"></i>Phụ kiện công nghệ</a>
+              <a class="nav-link dropdown-toggle text-dark" href="#" id="catDrop" data-toggle="dropdown">
+                Danh mục sản phẩm
+              </a>
+              <div class="dropdown-menu border-0 shadow-soft rounded-2xl p-2" aria-labelledby="catDrop" style="min-width: 220px;">
+                <?php if (!empty($nav_categories)): ?>
+                  <?php foreach ($nav_categories as $c): ?>
+                    <a class="dropdown-item rounded-pill-custom py-2" href="category.php?id=<?= $c['id'] ?>">
+                      <i class="fas fa-angle-right text-primary mr-2"></i>
+                      <?= htmlspecialchars($c['name']) ?>
+                    </a>
+                  <?php endforeach; ?>
+                <?php else: ?>
+                  <span class="dropdown-item text-muted small">Đang cập nhật...</span>
+                <?php endif; ?>
+
                 <div class="dropdown-divider"></div>
-                <a class="dropdown-item rounded-pill-custom py-2 text-primary font-weight-bold" href="#">Xem tất cả</a>
+                <a class="dropdown-item rounded-pill-custom py-2 text-primary font-weight-bold" href="category.php">
+                  <i class="fas fa-th-large mr-2"></i>Xem tất cả
+                </a>
               </div>
             </li>
-            <li class="nav-item"><a class="nav-link text-secondary" href="#">Sản phẩm mới</a></li>
-            <li class="nav-item"><a class="nav-link text-secondary" href="#">Ưu đãi đặc quyền</a></li>
-            <li class="nav-item"><a class="nav-link text-secondary" href="#">Cẩm nang bài viết</a></li>
+
+            <li class="nav-item"><a class="nav-link text-secondary" href="products.php?filter=new">Sản phẩm mới</a></li>
+            <li class="nav-item"><a class="nav-link text-secondary" href="products.php?filter=sale">Ưu đãi đặc quyền</a></li>
+            <li class="nav-item"><a class="nav-link text-secondary" href="terms.php">Điều khoản & Chính sách</a></li>
           </ul>
         </div>
       </div>

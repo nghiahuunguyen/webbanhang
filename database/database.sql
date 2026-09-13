@@ -1,86 +1,144 @@
+-- 1. Bảng Quyền hạn (Role)
 CREATE TABLE `Role` (
   `id` int PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(20) NOT NULL
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 2. Bảng Người dùng (User)
 CREATE TABLE `User` (
   `id` int PRIMARY KEY AUTO_INCREMENT,
-  `fullname` varchar(50),
-  `email` varchar(150),
-  `phone_number` varchar(20),
-  `address` varchar(200),
-  `password` varchar(32),
-  `role_id` int,
-  `created_at` datetime,
-  `updated_at` datetime,
-  `deleted` int
-);
+  `fullname` varchar(100) NOT NULL,
+  `email` varchar(150) NOT NULL,
+  `phone_number` varchar(20) NOT NULL,
+  `address` varchar(255) DEFAULT NULL,
+  `account` varchar(50) DEFAULT NULL,
+  `password` varchar(64) NOT NULL,
+  `role_id` int NOT NULL DEFAULT 2,
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted` tinyint DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 3. Bảng Danh mục (Category)
 CREATE TABLE `Category` (
   `id` int PRIMARY KEY AUTO_INCREMENT,
-  `name` varchar(100) NOT NULL
-  `deleted` int
-);
+  `name` varchar(100) NOT NULL,
+  `deleted` tinyint DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 4. Bảng Thương hiệu / Hãng (Brand)
+CREATE TABLE `Brand` (
+  `id` int PRIMARY KEY AUTO_INCREMENT,
+  `name` varchar(100) NOT NULL,
+  `logo` varchar(500) DEFAULT NULL,
+  `deleted` tinyint DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 5. Bảng Sản phẩm gốc (Product)
 CREATE TABLE `Product` (
   `id` int PRIMARY KEY AUTO_INCREMENT,
-  `category_id` int,
-  `title` varchar(350),
-  `price` int,
-  `discount` int,
-  `thumbnail` varchar(500),
-  `description` longtext,
-  `created_at` datetime,
-  `updated_at` datetime,
-  `deleted` int
-);
+  `category_id` int NOT NULL,
+  `brand_id` int DEFAULT NULL,
+  `title` varchar(350) NOT NULL,
+  `thumbnail` varchar(500) DEFAULT NULL,
+  `description` longtext DEFAULT NULL,
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted` tinyint DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 6. Bảng Biến thể cấu hình & Giá (Product_Variant)
+-- Quyết định giá bán và số lượng tồn kho theo Màu, RAM, Ổ cứng, GPU
+CREATE TABLE `Product_Variant` (
+  `id` int PRIMARY KEY AUTO_INCREMENT,
+  `product_id` int NOT NULL,
+  `sku` varchar(100) DEFAULT NULL,
+  `color` varchar(50) DEFAULT NULL,
+  `ram` varchar(50) DEFAULT NULL,
+  `cpu` varchar(100) DEFAULT NULL,
+  `storage` varchar(50) DEFAULT NULL,
+  `gpu` varchar(100) DEFAULT NULL,
+  `price` int NOT NULL DEFAULT 0,
+  `discount` int NOT NULL DEFAULT 0,
+  `stock_quantity` int NOT NULL DEFAULT 0,
+  `deleted` tinyint DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 7. Bảng Thư viện ảnh sản phẩm & ảnh theo màu (Galery)
 CREATE TABLE `Galery` (
   `id` int PRIMARY KEY AUTO_INCREMENT,
-  `product_id` int,
+  `product_id` int NOT NULL,
+  `variant_id` int DEFAULT NULL,
   `thumbnail` varchar(500) NOT NULL
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 8. Bảng Đánh giá & Phản hồi (FeedBack)
 CREATE TABLE `FeedBack` (
   `id` int PRIMARY KEY AUTO_INCREMENT,
-  `firstname` varchar(30),
-  `lastname` varchar(30),
-  `email` varchar(150),
-  `phone_number` varchar(20),
-  `subject_name` varchar(200),
-  `note` varchar(500)
-);
+  `firstname` varchar(50) DEFAULT NULL,
+  `lastname` varchar(50) DEFAULT NULL,
+  `email` varchar(150) DEFAULT NULL,
+  `phone_number` varchar(20) DEFAULT NULL,
+  `subject_name` varchar(255) DEFAULT NULL,
+  `note` text DEFAULT NULL,
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 9. Bảng Đơn hàng (Orders)
 CREATE TABLE `Orders` (
   `id` int PRIMARY KEY AUTO_INCREMENT,
-  `user_id` int,
-  `fullname` varchar(50),
-  `email` varchar(150),
-  `phone_number` varchar(20),
-  `address` varchar(200),
-  `note` varchar(255),
-  `order_date` datetime,
-  `status` int,
-  `total_money` int
-);
+  `user_id` int DEFAULT NULL,
+  `fullname` varchar(100) NOT NULL,
+  `email` varchar(150) NOT NULL,
+  `phone_number` varchar(20) NOT NULL,
+  `address` varchar(255) NOT NULL,
+  `note` varchar(500) DEFAULT NULL,
+  `order_date` datetime DEFAULT CURRENT_TIMESTAMP,
+  `status` tinyint NOT NULL DEFAULT 0 COMMENT '0: Chờ xác nhận, 1: Đang vận chuyển, 2: Hoàn thành, 3: Đã hủy',
+  `total_money` int NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 10. Bảng Chi tiết đơn hàng (Order_Details)
 CREATE TABLE `Order_Details` (
   `id` int PRIMARY KEY AUTO_INCREMENT,
-  `order_id` int,
-  `product_id` int,
-  `price` int,
-  `num` int,
-  `total_money` int
-);
+  `order_id` int NOT NULL,
+  `product_id` int NOT NULL,
+  `variant_id` int DEFAULT NULL,
+  `price` int NOT NULL DEFAULT 0,
+  `num` int NOT NULL DEFAULT 1,
+  `total_money` int NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-ALTER TABLE `User` ADD FOREIGN KEY (`role_id`) REFERENCES `Role` (`id`);
+-- ==================== TẠO KHÓA NGOẠI (FOREIGN KEYS) ====================
 
-ALTER TABLE `Product` ADD FOREIGN KEY (`category_id`) REFERENCES `Category` (`id`);
+-- Người dùng thuộc một Vai trò
+ALTER TABLE `User` 
+  ADD CONSTRAINT `fk_user_role` FOREIGN KEY (`role_id`) REFERENCES `Role` (`id`) ON DELETE RESTRICT;
 
-ALTER TABLE `Order_Details` ADD FOREIGN KEY (`product_id`) REFERENCES `Product` (`id`);
+-- Sản phẩm thuộc Danh mục và Hãng
+ALTER TABLE `Product` 
+  ADD CONSTRAINT `fk_product_category` FOREIGN KEY (`category_id`) REFERENCES `Category` (`id`) ON DELETE RESTRICT,
+  ADD CONSTRAINT `fk_product_brand` FOREIGN KEY (`brand_id`) REFERENCES `Brand` (`id`) ON DELETE SET NULL;
 
-ALTER TABLE `Galery` ADD FOREIGN KEY (`product_id`) REFERENCES `Product` (`id`);
+-- Biến thể thuộc Sản phẩm
+ALTER TABLE `Product_Variant` 
+  ADD CONSTRAINT `fk_variant_product` FOREIGN KEY (`product_id`) REFERENCES `Product` (`id`) ON DELETE CASCADE;
 
-ALTER TABLE `Order_Details` ADD FOREIGN KEY (`order_id`) REFERENCES `Orders` (`id`);
+-- Ảnh thư viện gắn với Sản phẩm và Biến thể (màu sắc)
+ALTER TABLE `Galery` 
+  ADD CONSTRAINT `fk_galery_product` FOREIGN KEY (`product_id`) REFERENCES `Product` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_galery_variant` FOREIGN KEY (`variant_id`) REFERENCES `Product_Variant` (`id`) ON DELETE SET NULL;
 
-ALTER TABLE `Orders` ADD FOREIGN KEY (`user_id`) REFERENCES `User` (`id`);
+-- Đơn hàng gắn với Người dùng (hoặc NULL nếu khách vãng lai)
+ALTER TABLE `Orders` 
+  ADD CONSTRAINT `fk_orders_user` FOREIGN KEY (`user_id`) REFERENCES `User` (`id`) ON DELETE SET NULL;
+
+-- Chi tiết đơn hàng gắn với Đơn hàng, Sản phẩm gốc và Cấu hình đã chọn
+ALTER TABLE `Order_Details` 
+  ADD CONSTRAINT `fk_detail_order` FOREIGN KEY (`order_id`) REFERENCES `Orders` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_detail_product` FOREIGN KEY (`product_id`) REFERENCES `Product` (`id`) ON DELETE RESTRICT,
+  ADD CONSTRAINT `fk_detail_variant` FOREIGN KEY (`variant_id`) REFERENCES `Product_Variant` (`id`) ON DELETE SET NULL;
+
+-- ==================== DỮ LIỆU BAN ĐẦU CẦN THIẾT ====================
+
+INSERT INTO `Role` (`id`, `name`) VALUES (1, 'Admin'), (2, 'User');

@@ -1,6 +1,7 @@
 <?php
-// Lấy đường dẫn URI hiện tại trên trình duyệt
 $current_uri = $_SERVER['REQUEST_URI'] ?? '';
+$currentUser = $_SESSION['user'] ?? null;
+$current_role = (int)($currentUser['role_id'] ?? 0);
 ?>
 
 <nav id="sidebar" class="col-md-3 col-lg-2 px-0 d-none d-md-block">
@@ -10,7 +11,7 @@ $current_uri = $_SERVER['REQUEST_URI'] ?? '';
   </div>
 
   <ul class="nav flex-column mt-2">
-    <!-- Dashboard: active khi vào đúng admin/ hoặc admin/index.php -->
+    <!-- Dashboard -->
     <li class="nav-item">
       <a class="nav-link <?= (preg_match('#/admin/(index\.php)?$#', $current_uri)) ? 'active font-weight-bold' : '' ?>" 
          href="/webbanhang/admin/index.php">
@@ -19,9 +20,9 @@ $current_uri = $_SERVER['REQUEST_URI'] ?? '';
     </li>
   </ul>
 
+  <!-- NHÓM SẢN PHẨM -->
   <div class="menu-header">Sản phẩm</div>
   <ul class="nav flex-column">
-    <!-- Danh mục: active khi URL chứa /category/ -->
     <li class="nav-item">
       <a class="nav-link <?= (strpos($current_uri, '/category/') !== false) ? 'active font-weight-bold' : '' ?>" 
          href="/webbanhang/admin/category/index.php">
@@ -29,34 +30,44 @@ $current_uri = $_SERVER['REQUEST_URI'] ?? '';
       </a>
     </li>
 
-    <!-- Sản phẩm: active khi URL chứa /product/ -->
+    <li class="nav-item">
+      <a class="nav-link <?= (strpos($current_uri, '/brand/') !== false) ? 'active font-weight-bold' : '' ?>" 
+         href="/webbanhang/admin/brand/index.php">
+        <i class="fas fa-industry mr-2"></i> Hãng
+      </a>
+    </li>
+
     <li class="nav-item">
       <a class="nav-link <?= (strpos($current_uri, '/product/') !== false) ? 'active font-weight-bold' : '' ?>" 
          href="/webbanhang/admin/product/index.php">
         <i class="fas fa-box-open mr-2"></i> Sản phẩm
       </a>
     </li>
+  </ul>
 
-    <!-- Đơn hàng -->
+  <!-- NHÓM KHÁCH HÀNG & ĐƠN HÀNG -->
+  <div class="menu-header mt-3">Khách hàng & Đơn hàng</div>
+  <ul class="nav flex-column">
     <li class="nav-item">
-      <a class="nav-link <?= (strpos($current_uri, 'orders.php') !== false) ? 'active font-weight-bold' : '' ?>" 
-         href="/webbanhang/admin/orders.php">
+      <a class="nav-link <?= (strpos($current_uri, '/customer/') !== false || strpos($current_uri, 'customer.php') !== false) ? 'active font-weight-bold' : '' ?>" 
+         href="/webbanhang/admin/customer/index.php">
+        <i class="fas fa-users mr-2"></i> Khách hàng
+      </a>
+    </li>
+
+    <li class="nav-item">
+      <a class="nav-link <?= (strpos($current_uri, '/order/') !== false || strpos($current_uri, 'order.php') !== false) ? 'active font-weight-bold' : '' ?>" 
+         href="/webbanhang/admin/order/index.php">
         <i class="fas fa-shopping-bag mr-2"></i> Đơn hàng (orders)
       </a>
     </li>
 
-    <!-- Chi tiết đơn -->
-    <li class="nav-item">
-      <a class="nav-link <?= (strpos($current_uri, 'order_details.php') !== false) ? 'active font-weight-bold' : '' ?>" 
-         href="/webbanhang/admin/order_details.php">
-        <i class="fas fa-file-invoice-dollar mr-2"></i> Chi tiết đơn (order_details)
-      </a>
-    </li>
+    
   </ul>
 
+  <!-- NHÓM HỆ THỐNG -->
   <div class="menu-header mt-3">Hệ thống</div>
   <ul class="nav flex-column mb-4">
-    <!-- Feedback -->
     <li class="nav-item">
       <a class="nav-link <?= (strpos($current_uri, 'feedback.php') !== false) ? 'active font-weight-bold' : '' ?>" 
          href="/webbanhang/admin/feedback.php">
@@ -64,7 +75,6 @@ $current_uri = $_SERVER['REQUEST_URI'] ?? '';
       </a>
     </li>
 
-    <!-- Users -->
     <li class="nav-item">
       <a class="nav-link <?= (strpos($current_uri, 'users.php') !== false) ? 'active font-weight-bold' : '' ?>" 
          href="/webbanhang/admin/users.php">
@@ -72,4 +82,17 @@ $current_uri = $_SERVER['REQUEST_URI'] ?? '';
       </a>
     </li>
   </ul>
+
+  <!-- NHÓM ADMIN (Chỉ hiển thị cho role_id = 1) -->
+  <?php if ($current_role === 1): ?>
+    <div class="menu-header mt-3">Admin</div>
+    <ul class="nav flex-column mb-4">
+      <li class="nav-item">
+        <a class="nav-link <?= (strpos($current_uri, '/staff/') !== false || strpos($current_uri, '/user/') !== false) ? 'active font-weight-bold' : '' ?>" 
+           href="/webbanhang/admin/staff/index.php">
+          <i class="fas fa-user-tie mr-2"></i> Nhân viên 
+        </a>
+      </li>
+    </ul>
+  <?php endif; ?>
 </nav>
