@@ -114,5 +114,12 @@ $current_role = (int)($currentUser['role_id'] ?? 0);
         <i class="fas fa-file-alt mr-2"></i> Chính sách & Hỗ trợ
       </a>
     </li>
+
+    <li class="nav-item">
+      <a class="nav-link <?= (strpos($current_uri, '/banner/') !== false) ? 'active font-weight-bold' : '' ?>" 
+         href="/webbanhang/admin/banner/index.php">
+        <i class="fas fa-file-alt mr-2"></i> Banner
+      </a>
+    </li>
   </ul>
 </nav>

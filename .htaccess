@@ -1,0 +1,9 @@
+RewriteEngine On
+RewriteBase /webbanhang/
+
+# Không ghi đè nếu truy cập vào file hoặc thư mục vật lý thật
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Chuyển hướng: chinh-sach/ten-bai-viet.html -> policy-detail.php?slug=ten-bai-viet
+RewriteRule ^chinh-sach/([^/]+)\.html$ policy-detail.php?slug=$1 [L,QSA]

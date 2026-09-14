@@ -206,3 +206,7 @@ CREATE TABLE IF NOT EXISTS `Policy` (
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+ALTER TABLE `Banner` ADD COLUMN `deleted` TINYINT(1) DEFAULT 0 COMMENT '0: Hoạt động, 1: Trong thùng rác';
+ALTER TABLE `Policy` ADD COLUMN `deleted` TINYINT(1) DEFAULT 0 COMMENT '0: Hoạt động, 1: Trong thùng rác';

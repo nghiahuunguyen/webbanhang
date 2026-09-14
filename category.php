@@ -1,8 +1,9 @@
 <?php
+date_default_timezone_set('Asia/Ho_Chi_Minh');
+session_start();
 require_once __DIR__ . '/database/dbhelper.php';
-include 'includes/header.php';
 
-// 1. Nhận các tham số lọc từ URL
+// 1. Nhận các tham số lọc & tìm kiếm từ URL
 $category_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 $brand_id    = isset($_GET['brand']) ? intval($_GET['brand']) : 0;
 $sort        = $_GET['sort'] ?? 'hot';
@@ -10,6 +11,7 @@ $price_range = $_GET['price_range'] ?? '';
 $filter_ram  = trim($_GET['ram'] ?? '');
 $filter_cpu  = trim($_GET['cpu'] ?? '');
 $filter_gpu  = trim($_GET['gpu'] ?? '');
+$keyword     = trim($_GET['search'] ?? '');
 
 // Lấy thông tin danh mục hiện tại
 $current_category = null;
@@ -17,7 +19,7 @@ if ($category_id > 0) {
     $current_category = executeResult("SELECT * FROM Category WHERE id = $category_id AND deleted = 0", true);
 }
 
-// 2. Lấy danh sách Brand thuộc danh mục này (hiển thị dãy nút logo ngang)
+// 2. Lấy danh sách Hãng (Brand) có sản phẩm thuộc danh mục
 $brand_sql_where = "WHERE p.deleted = 0";
 if ($category_id > 0) {
     $brand_sql_where .= " AND p.category_id = $category_id";
@@ -38,13 +40,17 @@ $avail_rams = array_unique(array_filter(array_column($variants_meta, 'ram')));
 $avail_cpus = array_unique(array_filter(array_column($variants_meta, 'cpu')));
 $avail_gpus = array_unique(array_filter(array_column($variants_meta, 'gpu')));
 
-// 4. Xây dựng câu truy vấn lọc SQL
+// 4. Xây dựng điều kiện lọc SQL
 $where_clauses = ["p.deleted = 0"];
 if ($category_id > 0) {
     $where_clauses[] = "p.category_id = $category_id";
 }
 if ($brand_id > 0) {
     $where_clauses[] = "p.brand_id = $brand_id";
+}
+if (!empty($keyword)) {
+    $safe_kw = str_replace("'", "\'", $keyword);
+    $where_clauses[] = "(p.title LIKE '%$safe_kw%' OR p.description LIKE '%$safe_kw%')";
 }
 if (!empty($filter_ram)) {
     $safe_ram = str_replace("'", "\'", $filter_ram);
@@ -59,7 +65,7 @@ if (!empty($filter_gpu)) {
     $where_clauses[] = "p.id IN (SELECT product_id FROM Product_Variant WHERE gpu = '$safe_gpu' AND deleted = 0)";
 }
 
-// Lọc theo mốc giá
+// Lọc theo mốc giá (giá thực tế sau khi trừ discount)
 if ($price_range === 'under_10') {
     $where_clauses[] = "p.id IN (SELECT product_id FROM Product_Variant WHERE (price - discount) < 10000000 AND deleted = 0)";
 } elseif ($price_range === '10_15') {
@@ -86,7 +92,7 @@ if ($sort === 'sale') {
     $order_by = "ORDER BY min_sale_price DESC";
 }
 
-// 5. Phân trang
+// 5. Cấu hình phân trang: 12 máy / trang
 $limit = 12;
 $page = isset($_GET['page']) ? intval($_GET['page']) : 1;
 if ($page < 1) $page = 1;
@@ -99,7 +105,7 @@ if ($total_pages > 0 && $page > $total_pages) $page = $total_pages;
 $start = ($page - 1) * $limit;
 if ($start < 0) $start = 0;
 
-// 6. Lấy dữ liệu sản phẩm
+// 6. Lấy dữ liệu sản phẩm kết hợp khoảng giá
 $sql_products = "SELECT p.*, 
                         c.name AS category_name, 
                         b.name AS brand_name,
@@ -115,7 +121,7 @@ $sql_products = "SELECT p.*,
                  LIMIT $start, $limit";
 $products = executeResult($sql_products);
 
-// Lấy biến thể để hiển thị nút chọn nhanh (ROM/Màu)
+// Lấy danh sách biến thể tương ứng cho từng sản phẩm
 $product_ids = array_column($products, 'id');
 $variants_by_product = [];
 if (!empty($product_ids)) {
@@ -126,7 +132,7 @@ if (!empty($product_ids)) {
     }
 }
 
-// Helper sinh URL giữ nguyên query
+// Hàm sinh URL giữ nguyên query
 function filterUrl($overrides = []) {
     $params = $_GET;
     foreach ($overrides as $k => $v) {
@@ -139,6 +145,9 @@ function filterUrl($overrides = []) {
     unset($params['page']);
     return 'category.php?' . http_build_query($params);
 }
+
+$page_title = ($current_category ? $current_category['name'] : 'Danh sách sản phẩm') . ' - NovaShop';
+include 'includes/header.php';
 ?>
 
 <div class="container py-3">
@@ -148,6 +157,7 @@ function filterUrl($overrides = []) {
     <i class="fas fa-chevron-right mx-1" style="font-size: 0.65rem;"></i>
     <span class="text-dark font-weight-bold">
       <?= number_format($total_records, 0, ',', '.') ?> <?= $current_category ? htmlspecialchars($current_category['name']) : 'Sản phẩm' ?>
+      <?= !empty($keyword) ? ' cho từ khóa "' . htmlspecialchars($keyword) . '"' : '' ?>
     </span>
   </div>
 
@@ -164,6 +174,10 @@ function filterUrl($overrides = []) {
     </button>
 
     <div class="d-flex align-items-center brand-list-scroll">
+      <a href="<?= filterUrl(['brand' => null]) ?>" 
+         class="brand-pill-btn <?= ($brand_id === 0) ? 'active' : '' ?>">
+        <span>Tất cả</span>
+      </a>
       <?php foreach ($available_brands as $b): 
         $is_selected = ($brand_id === (int)$b['id']);
         $logo_path = $b['logo'];
@@ -171,7 +185,7 @@ function filterUrl($overrides = []) {
         <a href="<?= filterUrl(['brand' => $is_selected ? null : $b['id']]) ?>" 
            class="brand-pill-btn <?= $is_selected ? 'active' : '' ?>"
            title="<?= htmlspecialchars($b['name']) ?>">
-          <?php if (!empty($logo_path) && file_exists($logo_path)): ?>
+          <?php if (!empty($logo_path) && (file_exists($logo_path) || file_exists(__DIR__ . '/' . $logo_path))): ?>
             <img src="<?= htmlspecialchars($logo_path) ?>" alt="<?= htmlspecialchars($b['name']) ?>">
           <?php else: ?>
             <span><?= htmlspecialchars($b['name']) ?></span>
@@ -181,7 +195,7 @@ function filterUrl($overrides = []) {
     </div>
   </div>
 
-  <!-- 3. Hàng sắp xếp text -->
+  <!-- 3. Hàng sắp xếp -->
   <div class="d-flex align-items-center mb-4 flex-wrap sort-bar-text">
     <span class="text-dark font-weight-medium mr-3" style="font-size: 0.88rem;">Sắp xếp theo:</span>
     
@@ -221,9 +235,11 @@ function filterUrl($overrides = []) {
       <?php foreach ($products as $prod): 
         $pid = $prod['id'];
         $variants = $variants_by_product[$pid] ?? [];
-        $thumb_src = (!empty($prod['thumbnail']) && file_exists($prod['thumbnail'])) 
-                     ? htmlspecialchars($prod['thumbnail']) 
-                     : 'https://via.placeholder.com/300x300?text=No+Image';
+        
+        $raw_thumb = $prod['thumbnail'];
+        $thumb_src = (!empty($raw_thumb) && (file_exists($raw_thumb) || file_exists(__DIR__ . '/' . $raw_thumb))) 
+                     ? htmlspecialchars($raw_thumb) 
+                     : (!empty($raw_thumb) && strpos($raw_thumb, 'http') === 0 ? htmlspecialchars($raw_thumb) : 'https://via.placeholder.com/300x300?text=No+Image');
 
         $first_v = !empty($variants) ? $variants[0] : null;
         $def_spec = $first_v ? ($first_v['storage'] ?: ($first_v['ram'] ?: '')) : '';
@@ -241,16 +257,18 @@ function filterUrl($overrides = []) {
         <div class="col-lg-3 col-md-4 col-6 mb-4">
           <div class="product-card border rounded p-3 bg-white h-100 d-flex flex-column" data-base-title="<?= htmlspecialchars($prod['title']) ?>">
             
-            <a href="product-detail.php?id=<?= $pid ?>" class="d-block text-center py-2">
+            <!-- Link chuẩn tới detail.php -->
+            <a href="detail.php?id=<?= $pid ?>" class="d-block text-center py-2">
               <img src="<?= $thumb_src ?>" alt="<?= htmlspecialchars($prod['title']) ?>" class="img-fluid product-thumb">
             </a>
 
             <h6 class="product-title font-weight-normal text-dark mb-2 mt-1">
-              <a href="product-detail.php?id=<?= $pid ?>" class="text-dark text-decoration-none">
+              <a href="detail.php?id=<?= $pid ?>" class="text-dark text-decoration-none">
                 <span class="title-text"><?= htmlspecialchars($prod['title']) ?><?= $def_spec ? ' ' . htmlspecialchars($def_spec) : '' ?></span>
               </a>
             </h6>
 
+            <!-- Tag CPU / GPU / RAM -->
             <div class="d-flex flex-wrap mb-2 tag-specs-container" style="gap: 4px; min-height: 24px;">
               <?php if (!empty($first_v['cpu'])): ?>
                 <span class="badge-spec"><?= htmlspecialchars($first_v['cpu']) ?></span>
@@ -262,6 +280,7 @@ function filterUrl($overrides = []) {
               <?php endif; ?>
             </div>
 
+            <!-- Nút chọn phiên bản cấu hình -->
             <?php if (!empty($variants)): ?>
               <div class="variant-chips d-flex flex-wrap mb-2" style="gap: 6px;">
                 <?php foreach ($variants as $idx => $v): 
@@ -291,6 +310,7 @@ function filterUrl($overrides = []) {
               </div>
             <?php endif; ?>
 
+            <!-- Khối giá bán -->
             <div class="mt-auto pt-2">
               <div class="price-current text-danger font-weight-bold">
                 <span class="val-sale"><?= $def_sale > 0 ? number_format($def_sale, 0, ',', '.') : 'Liên hệ' ?></span>₫
@@ -304,7 +324,7 @@ function filterUrl($overrides = []) {
             <div class="d-flex align-items-center mt-2 pt-2 border-top small text-muted">
               <i class="fas fa-star text-warning mr-1"></i>
               <span class="font-weight-bold text-dark mr-1">4.9</span>
-              <span class="text-secondary">• Đã bán 49,5k</span>
+              <span class="text-secondary">• Bảo hành chính hãng</span>
             </div>
 
           </div>
@@ -365,6 +385,9 @@ function filterUrl($overrides = []) {
         <?php if ($category_id > 0): ?>
           <input type="hidden" name="id" value="<?= $category_id ?>">
         <?php endif; ?>
+        <?php if (!empty($keyword)): ?>
+          <input type="hidden" name="search" value="<?= htmlspecialchars($keyword) ?>">
+        <?php endif; ?>
         <input type="hidden" name="sort" value="<?= htmlspecialchars($sort) ?>">
 
         <div class="modal-body p-4" style="max-height: 70vh; overflow-y: auto;">
@@ -384,7 +407,7 @@ function filterUrl($overrides = []) {
           <?php endif; ?>
 
           <div class="mb-4">
-            <h6 class="font-weight-bold text-dark mb-2">Giá</h6>
+            <h6 class="font-weight-bold text-dark mb-2">Mức giá</h6>
             <div class="d-flex flex-wrap" style="gap: 8px;">
               <label class="custom-filter-chip">
                 <input type="radio" name="price_range" value="under_10" <?= ($price_range === 'under_10') ? 'checked' : '' ?>>

@@ -8,16 +8,20 @@ if (!empty($settings_query)) {
     }
 }
 
-// 2. Lấy danh sách Chính sách và Hỗ trợ đang kích hoạt từ bảng Policy
-$policies = executeResult("SELECT `title`, `slug` FROM `Policy` WHERE `group_type` = 'policy' AND `is_active` = 1 ORDER BY `sort_order` ASC, `id` ASC");
-$supports = executeResult("SELECT `title`, `slug` FROM `Policy` WHERE `group_type` = 'support' AND `is_active` = 1 ORDER BY `sort_order` ASC, `id` ASC");
+// Lấy tên hiển thị động cho 2 cột chân trang từ CSDL
+$col2_display_title = !empty($site_cfg['footer_policy_title']) ? $site_cfg['footer_policy_title'] : 'Chính Sách';
+$col3_display_title = !empty($site_cfg['footer_support_title']) ? $site_cfg['footer_support_title'] : 'Hỗ Trợ';
+
+// 2. Lấy danh sách Chính sách và Hỗ trợ đang kích hoạt và CHƯA BỊ XÓA (deleted = 0)
+$policies = executeResult("SELECT `title`, `slug` FROM `Policy` WHERE `group_type` = 'policy' AND `is_active` = 1 AND `deleted` = 0 ORDER BY `sort_order` ASC, `id` ASC");
+$supports = executeResult("SELECT `title`, `slug` FROM `Policy` WHERE `group_type` = 'support' AND `is_active` = 1 AND `deleted` = 0 ORDER BY `sort_order` ASC, `id` ASC");
 ?>
 
 <!-- ==================== PHẦN CUỐI (FOOTER & CHÍNH SÁCH) ==================== -->
   <footer class="bg-white border-top pt-5">
     <div class="container pb-4">
       
-      <!-- Khối chính sách hiện đại -->
+      <!-- Khối cam kết dịch vụ -->
       <div class="row bg-light rounded-2xl p-4 mb-5 border">
         <div class="col-md-3 col-6 text-center my-2">
           <i class="fas fa-shipping-fast text-primary fa-lg mb-2"></i>
@@ -67,44 +71,38 @@ $supports = executeResult("SELECT `title`, `slug` FROM `Policy` WHERE `group_typ
           </div>
         </div>
 
-        <!-- Cột 2: Chính sách (Lấy tự động từ CSDL bảng Policy) -->
+        <!-- Cột 2: Tiêu đề đổi động theo Admin (Mặc định: Chính Sách) -->
         <div class="col-lg-2 col-md-3 col-6 mb-4">
-          <h6 class="font-weight-bold text-dark mb-3">Chính Sách</h6>
+          <h6 class="font-weight-bold text-dark mb-3"><?= htmlspecialchars($col2_display_title) ?></h6>
           <ul class="list-unstyled small text-muted">
             <?php if (!empty($policies)): ?>
               <?php foreach ($policies as $pol): ?>
                 <li class="mb-2">
-                  <a href="policy-detail.php?slug=<?= htmlspecialchars($pol['slug']) ?>" class="text-muted text-decoration-none">
+                  <a href="chinh-sach/<?= htmlspecialchars($pol['slug']) ?>.html" class="text-muted text-decoration-none">
                     <?= htmlspecialchars($pol['title']) ?>
                   </a>
                 </li>
               <?php endforeach; ?>
             <?php else: ?>
-              <li class="mb-2"><a href="#" class="text-muted text-decoration-none">Chính sách bảo hành</a></li>
-              <li class="mb-2"><a href="#" class="text-muted text-decoration-none">Chính sách hoàn tiền</a></li>
-              <li class="mb-2"><a href="#" class="text-muted text-decoration-none">Phương thức vận chuyển</a></li>
-              <li><a href="#" class="text-muted text-decoration-none">Bảo mật thông tin</a></li>
+              <li class="text-muted small">Đang cập nhật...</li>
             <?php endif; ?>
           </ul>
         </div>
 
-        <!-- Cột 3: Hỗ trợ (Lấy tự động từ CSDL bảng Policy) -->
+        <!-- Cột 3: Tiêu đề đổi động theo Admin (Mặc định: Hỗ Trợ) -->
         <div class="col-lg-2 col-md-3 col-6 mb-4">
-          <h6 class="font-weight-bold text-dark mb-3">Hỗ Trợ</h6>
+          <h6 class="font-weight-bold text-dark mb-3"><?= htmlspecialchars($col3_display_title) ?></h6>
           <ul class="list-unstyled small text-muted">
             <?php if (!empty($supports)): ?>
               <?php foreach ($supports as $sup): ?>
                 <li class="mb-2">
-                  <a href="policy-detail.php?slug=<?= htmlspecialchars($sup['slug']) ?>" class="text-muted text-decoration-none">
+                  <a href="chinh-sach/<?= htmlspecialchars($sup['slug']) ?>.html" class="text-muted text-decoration-none">
                     <?= htmlspecialchars($sup['title']) ?>
                   </a>
                 </li>
               <?php endforeach; ?>
             <?php else: ?>
-              <li class="mb-2"><a href="#" class="text-muted text-decoration-none">Tra cứu bảo hành</a></li>
-              <li class="mb-2"><a href="#" class="text-muted text-decoration-none">Theo dõi bưu kiện</a></li>
-              <li class="mb-2"><a href="#" class="text-muted text-decoration-none">Hướng dẫn thanh toán</a></li>
-              <li><a href="#" class="text-muted text-decoration-none">Liên hệ hợp tác</a></li>
+              <li class="text-muted small">Đang cập nhật...</li>
             <?php endif; ?>
           </ul>
         </div>
@@ -146,7 +144,7 @@ $supports = executeResult("SELECT `title`, `slug` FROM `Policy` WHERE `group_typ
   <!-- ==================== KHỐI CHATBOX NỔI GÓC DƯỚI PHẢI ==================== -->
   <div id="floating-chat-container" style="position: fixed; bottom: 25px; right: 25px; z-index: 9999;">
     <!-- Hộp thoại Chatbox -->
-    <div id="chatbox-window" class="card border-0 shadow-lg rounded-2xl mb-3 d-none" style="width: 340px; height: 430px; overflow: hidden; animation: slideUp 0.3s ease;">
+    <div id="chatbox-window" class="card border-0 shadow-lg rounded-2xl mb-3 d-none" style="width: 350px; height: 450px; overflow: hidden; animation: slideUp 0.3s ease;">
       <!-- Header Chatbox -->
       <div class="card-header bg-primary text-white d-flex align-items-center justify-content-between p-3 border-0">
         <div class="d-flex align-items-center">
@@ -169,8 +167,8 @@ $supports = executeResult("SELECT `title`, `slug` FROM `Policy` WHERE `group_typ
       <!-- Khung hiển thị tin nhắn -->
       <div class="card-body p-3 bg-light d-flex flex-column" id="chatbox-messages" style="overflow-y: auto; gap: 10px;">
         <div class="d-flex align-items-start">
-          <div class="bg-white p-2 px-3 rounded-2xl shadow-sm text-dark small" style="max-width: 80%;">
-            Chào bạn! <?= htmlspecialchars($site_cfg['site_name'] ?? 'NovaShop') ?> có thể hỗ trợ thông tin gì cho bạn hôm nay ạ?
+          <div class="bg-white p-2 px-3 rounded-2xl shadow-sm text-dark small" style="max-width: 85%;">
+            Chào bạn! <?= htmlspecialchars($site_cfg['site_name'] ?? 'NovaShop') ?> có thể hỗ trợ thông tin gì cho bạn hôm nay? Bạn có thể hỏi về giá, cấu hình máy hoặc địa chỉ showroom nhé!
           </div>
         </div>
       </div>
@@ -178,7 +176,7 @@ $supports = executeResult("SELECT `title`, `slug` FROM `Policy` WHERE `group_typ
       <!-- Ô nhập nội dung chat -->
       <div class="card-footer bg-white p-2 border-top">
         <form id="chat-form" class="d-flex align-items-center">
-          <input type="text" id="chat-input" class="form-control rounded-pill-custom border-0 bg-light small mr-2 py-2" placeholder="Nhập tin nhắn..." autocomplete="off">
+          <input type="text" id="chat-input" class="form-control rounded-pill-custom border-0 bg-light small mr-2 py-2" placeholder="Nhập tên máy, hãng, danh mục..." autocomplete="off">
           <button type="submit" class="btn btn-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 38px; height: 38px; min-width: 38px;">
             <i class="fas fa-paper-plane fa-sm"></i>
           </button>
@@ -208,7 +206,7 @@ $supports = executeResult("SELECT `title`, `slug` FROM `Policy` WHERE `group_typ
   <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
 
-  <!-- Script điều khiển đóng mở và gửi tin nhắn trong Chatbox -->
+  <!-- Script điều khiển Chatbox AJAX -->
   <script>
     const chatBtn = document.getElementById('btn-toggle-chat');
     const closeBtn = document.getElementById('btn-close-chat');
@@ -231,29 +229,58 @@ $supports = executeResult("SELECT `title`, `slug` FROM `Policy` WHERE `group_typ
     if (chatBtn) chatBtn.addEventListener('click', toggleChat);
     if (closeBtn) closeBtn.addEventListener('click', toggleChat);
 
+    function escapeHtml(text) {
+      return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
     if (chatForm) {
       chatForm.addEventListener('submit', function(e) {
         e.preventDefault();
         const msg = chatInput.value.trim();
         if (!msg) return;
 
-        // Thêm tin nhắn của khách vào khung chat
+        // 1. Hiển thị tin nhắn người dùng
         const userMsgDiv = document.createElement('div');
         userMsgDiv.className = 'd-flex align-items-end justify-content-end';
-        userMsgDiv.innerHTML = `<div class="bg-primary text-white p-2 px-3 rounded-2xl shadow-sm small" style="max-width: 80%;">${msg}</div>`;
+        userMsgDiv.innerHTML = `<div class="bg-primary text-white p-2 px-3 rounded-2xl shadow-sm small" style="max-width: 80%;">${escapeHtml(msg)}</div>`;
         chatMessages.appendChild(userMsgDiv);
 
         chatInput.value = '';
         chatMessages.scrollTop = chatMessages.scrollHeight;
 
-        // Phản hồi mẫu tự động sau 800ms
-        setTimeout(() => {
+        // 2. Hiệu ứng tạm thời "Đang tra cứu..."
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'd-flex align-items-start temp-loading';
+        loadingDiv.innerHTML = `<div class="bg-white p-2 px-3 rounded-2xl shadow-sm text-muted small"><i class="fas fa-spinner fa-spin mr-1"></i> Đang tra cứu hệ thống...</div>`;
+        chatMessages.appendChild(loadingDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        // 3. Gửi Ajax lên ajax_chat.php
+        fetch('ajax_chat.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'message=' + encodeURIComponent(msg)
+        })
+        .then(response => response.json())
+        .then(data => {
+          const loadingBox = document.querySelector('.temp-loading');
+          if (loadingBox) loadingBox.remove();
+
           const botMsgDiv = document.createElement('div');
           botMsgDiv.className = 'd-flex align-items-start';
-          botMsgDiv.innerHTML = `<div class="bg-white p-2 px-3 rounded-2xl shadow-sm text-dark small" style="max-width: 80%;">Chuyên viên CSKH đã nhận được tin nhắn và sẽ phản hồi trong giây lát!</div>`;
+          botMsgDiv.innerHTML = `<div class="bg-white p-2 px-3 rounded-2xl shadow-sm text-dark small" style="max-width: 88%;">${data.reply}</div>`;
           chatMessages.appendChild(botMsgDiv);
           chatMessages.scrollTop = chatMessages.scrollHeight;
-        }, 800);
+        })
+        .catch(() => {
+          const loadingBox = document.querySelector('.temp-loading');
+          if (loadingBox) loadingBox.remove();
+
+          const errorDiv = document.createElement('div');
+          errorDiv.className = 'd-flex align-items-start';
+          errorDiv.innerHTML = `<div class="bg-white p-2 px-3 rounded-2xl shadow-sm text-danger small">Lỗi kết nối máy chủ, vui lòng thử lại sau!</div>`;
+          chatMessages.appendChild(errorDiv);
+        });
       });
     }
   </script>
