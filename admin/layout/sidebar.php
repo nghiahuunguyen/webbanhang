@@ -95,4 +95,24 @@ $current_role = (int)($currentUser['role_id'] ?? 0);
       </li>
     </ul>
   <?php endif; ?>
+
+
+
+  <!-- NHÓM HỆ THỐNG -->
+  <div class="menu-header mt-3">Trang web</div>
+  <ul class="nav flex-column mb-4">
+    <li class="nav-item">
+      <a class="nav-link <?= (strpos($current_uri, '/setting/') !== false) ? 'active font-weight-bold' : '' ?>" 
+         href="/webbanhang/admin/setting/index.php">
+        <i class="fas fa-cog mr-2"></i> Cài đặt
+      </a>
+    </li>
+
+    <li class="nav-item">
+      <a class="nav-link <?= (strpos($current_uri, '/policy/') !== false) ? 'active font-weight-bold' : '' ?>" 
+         href="/webbanhang/admin/policy/index.php">
+        <i class="fas fa-file-alt mr-2"></i> Chính sách & Hỗ trợ
+      </a>
+    </li>
+  </ul>
 </nav>

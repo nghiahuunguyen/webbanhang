@@ -1,4 +1,6 @@
 <?php 
+date_default_timezone_set('Asia/Ho_Chi_Minh');
+session_start();
 require_once __DIR__ . '/database/dbhelper.php';
 
 // 1. Nhận ID sản phẩm từ URL
@@ -38,6 +40,7 @@ $def_sale = max(0, $def_price - $def_discount);
 $def_stock = $first_variant ? (int)$first_variant['stock_quantity'] : 0;
 $def_percent = ($def_price > 0 && $def_discount > 0) ? round(($def_discount / $def_price) * 100) : 0;
 
+$is_logged_in = isset($_SESSION['user']);
 $page_title = $product['title'];
 include 'includes/header.php';
 ?>
@@ -149,7 +152,6 @@ include 'includes/header.php';
                   $v_sale = max(0, $v_price - $v_disc);
                   $v_stock = (int)$v['stock_quantity'];
 
-                  // Nhãn hiển thị phiên bản
                   $label_parts = array_filter([$v['storage'], $v['ram'], $v['color']]);
                   $spec_title = !empty($label_parts) ? implode(' - ', $label_parts) : 'Bản tiêu chuẩn';
                 ?>
@@ -193,14 +195,23 @@ include 'includes/header.php';
             </div>
           </div>
 
-          <!-- Nút Mua hàng & Thêm vào giỏ -->
+          <!-- Nút Mua hàng & Thêm vào giỏ có kiểm tra Đăng nhập -->
           <div class="d-flex mb-4">
-            <button type="submit" name="btn_add_cart" class="btn btn-outline-primary rounded-pill-custom px-4 py-2 font-weight-bold mr-3 shadow-sm" <?= $def_stock <= 0 ? 'disabled' : '' ?> id="btnAddToCart">
-              <i class="fas fa-cart-plus mr-2"></i> Thêm Vào Giỏ
-            </button>
-            <button type="submit" name="btn_buy_now" value="1" class="btn btn-primary rounded-pill-custom px-4 py-2 font-weight-bold shadow-sm" <?= $def_stock <= 0 ? 'disabled' : '' ?> id="btnBuyNow">
-              Mua Ngay
-            </button>
+            <?php if ($is_logged_in): ?>
+              <button type="submit" name="btn_add_cart" class="btn btn-outline-primary rounded-pill-custom px-4 py-2 font-weight-bold mr-3 shadow-sm" <?= $def_stock <= 0 ? 'disabled' : '' ?> id="btnAddToCart">
+                <i class="fas fa-cart-plus mr-2"></i> Thêm Vào Giỏ
+              </button>
+              <button type="submit" name="btn_buy_now" value="1" class="btn btn-primary rounded-pill-custom px-4 py-2 font-weight-bold shadow-sm" <?= $def_stock <= 0 ? 'disabled' : '' ?> id="btnBuyNow">
+                Mua Ngay
+              </button>
+            <?php else: ?>
+              <button type="button" onclick="requireLoginNotice()" class="btn btn-outline-primary rounded-pill-custom px-4 py-2 font-weight-bold mr-3 shadow-sm" <?= $def_stock <= 0 ? 'disabled' : '' ?> id="btnAddToCart">
+                <i class="fas fa-cart-plus mr-2"></i> Thêm Vào Giỏ
+              </button>
+              <button type="button" onclick="requireLoginNotice()" class="btn btn-primary rounded-pill-custom px-4 py-2 font-weight-bold shadow-sm" <?= $def_stock <= 0 ? 'disabled' : '' ?> id="btnBuyNow">
+                Mua Ngay
+              </button>
+            <?php endif; ?>
           </div>
 
           <!-- Cam kết dịch vụ đi kèm -->
@@ -305,6 +316,53 @@ include 'includes/header.php';
 </style>
 
 <script>
+  // Hiển thị Toast thông báo yêu cầu đăng nhập ở góc trên bên phải
+  function requireLoginNotice() {
+    var oldToast = document.getElementById('login-alert-toast');
+    if (oldToast) oldToast.remove();
+
+    var loginUrl = 'login.php?redirect=' + encodeURIComponent(window.location.href);
+    var toastDiv = document.createElement('div');
+    toastDiv.id = 'login-alert-toast';
+    toastDiv.style.cssText = 'position: fixed; top: 25px; right: 25px; z-index: 99999; min-width: 330px; max-width: 400px; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); transform: translateY(-15px); opacity: 0;';
+
+    toastDiv.innerHTML = `
+      <div class="card border-0 shadow-lg" style="border-radius: 12px; overflow: hidden; border-left: 5px solid #ef4444 !important;">
+        <div class="card-body p-3 bg-white text-dark">
+          <div class="d-flex align-items-start justify-content-between mb-2">
+            <div class="d-flex align-items-center">
+              <span class="text-danger mr-2" style="font-size: 1.15rem;"><i class="fas fa-exclamation-circle"></i></span>
+              <strong class="text-dark font-weight-bold" style="font-size: 0.95rem;">Yêu cầu đăng nhập</strong>
+            </div>
+            <button type="button" class="close text-muted" onclick="this.closest('#login-alert-toast').remove()" style="outline: none; font-size: 1.25rem; line-height: 1;">&times;</button>
+          </div>
+          <p class="small text-muted mb-3" style="line-height: 1.5;">Vui lòng đăng nhập tài khoản để thêm vào giỏ và đặt mua sản phẩm này.</p>
+          <div class="d-flex justify-content-end" style="gap: 8px;">
+            <button type="button" class="btn btn-sm btn-light border px-3 py-1 font-weight-bold" onclick="this.closest('#login-alert-toast').remove()">Đóng</button>
+            <a href="${loginUrl}" class="btn btn-sm btn-danger px-3 py-1 font-weight-bold text-white shadow-sm" style="border-radius: 6px;">Đăng nhập ngay</a>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(toastDiv);
+
+    // Kích hoạt hiệu ứng xuất hiện mượt
+    setTimeout(function() {
+      toastDiv.style.opacity = '1';
+      toastDiv.style.transform = 'translateY(0)';
+    }, 10);
+
+    // Tự động biến mất sau 6 giây
+    setTimeout(function() {
+      if (toastDiv && document.body.contains(toastDiv)) {
+        toastDiv.style.opacity = '0';
+        toastDiv.style.transform = 'translateX(50px)';
+        setTimeout(function() { toastDiv.remove(); }, 400);
+      }
+    }, 6000);
+  }
+
   // Đổi ảnh lớn khi bấm vào ảnh con
   function changeMainImg(src, thumbEl) {
     document.getElementById('mainProductImg').src = src;

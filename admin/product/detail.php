@@ -2,7 +2,13 @@
 date_default_timezone_set('Asia/Ho_Chi_Minh');
 session_start();
 require_once('../../database/dbhelper.php');
+require_once('../check_role.php');
 
+// Cho phép Admin (1) và Nhân viên (3) truy cập
+if (!isset($_SESSION['user']) || !in_array($_SESSION['user']['role_id'], [1, 3])) {
+    header('Location: ../auth/login.php');
+    die();
+}
 $page_title = 'Chi Tiết Sản Phẩm & Biến Thể';
 $id = $_GET['id'] ?? '';
 if (empty($id)) {

@@ -1,3 +1,18 @@
+<?php
+// 1. Lấy dữ liệu cấu hình hệ thống từ bảng System_Settings
+$settings_query = executeResult("SELECT `key_name`, `key_value` FROM `System_Settings`");
+$site_cfg = [];
+if (!empty($settings_query)) {
+    foreach ($settings_query as $st) {
+        $site_cfg[$st['key_name']] = $st['key_value'];
+    }
+}
+
+// 2. Lấy danh sách Chính sách và Hỗ trợ đang kích hoạt từ bảng Policy
+$policies = executeResult("SELECT `title`, `slug` FROM `Policy` WHERE `group_type` = 'policy' AND `is_active` = 1 ORDER BY `sort_order` ASC, `id` ASC");
+$supports = executeResult("SELECT `title`, `slug` FROM `Policy` WHERE `group_type` = 'support' AND `is_active` = 1 ORDER BY `sort_order` ASC, `id` ASC");
+?>
+
 <!-- ==================== PHẦN CUỐI (FOOTER & CHÍNH SÁCH) ==================== -->
   <footer class="bg-white border-top pt-5">
     <div class="container pb-4">
@@ -30,58 +45,92 @@
       <div class="row">
         <!-- Cột 1: Thương hiệu & Mạng xã hội -->
         <div class="col-lg-4 col-md-6 mb-4">
-          <h5 class="font-weight-bold text-dark mb-3">NOVA<span class="text-primary">SHOP</span></h5>
+          <h5 class="font-weight-bold text-dark mb-3">
+            <?= htmlspecialchars($site_cfg['site_name'] ?? 'NOVASHOP') ?>
+          </h5>
           <p class="text-muted small pr-md-4">
-            Đồng hành cùng phong cách sống hiện đại. Mua sắm dễ dàng, thanh toán linh hoạt và dịch vụ hậu mãi chuẩn 5 sao.
+            <?= htmlspecialchars($site_cfg['site_slogan'] ?? 'Đồng hành cùng phong cách sống hiện đại. Mua sắm dễ dàng, thanh toán linh hoạt và dịch vụ hậu mãi chuẩn 5 sao.') ?>
           </p>
           <div class="mt-3">
-            <a href="#" class="btn btn-light btn-icon text-muted border mr-2"><i class="fab fa-facebook-f"></i></a>
-            <a href="#" class="btn btn-light btn-icon text-muted border mr-2"><i class="fab fa-instagram"></i></a>
-            <a href="#" class="btn btn-light btn-icon text-muted border mr-2"><i class="fab fa-youtube"></i></a>
-            <a href="#" class="btn btn-light btn-icon text-muted border"><i class="fab fa-tiktok"></i></a>
+            <?php if (!empty($site_cfg['facebook_link'])): ?>
+              <a href="<?= htmlspecialchars($site_cfg['facebook_link']) ?>" target="_blank" class="btn btn-light btn-icon text-muted border mr-2"><i class="fab fa-facebook-f"></i></a>
+            <?php endif; ?>
+            <?php if (!empty($site_cfg['instagram_link'])): ?>
+              <a href="<?= htmlspecialchars($site_cfg['instagram_link']) ?>" target="_blank" class="btn btn-light btn-icon text-muted border mr-2"><i class="fab fa-instagram"></i></a>
+            <?php endif; ?>
+            <?php if (!empty($site_cfg['youtube_link'])): ?>
+              <a href="<?= htmlspecialchars($site_cfg['youtube_link']) ?>" target="_blank" class="btn btn-light btn-icon text-muted border mr-2"><i class="fab fa-youtube"></i></a>
+            <?php endif; ?>
+            <?php if (!empty($site_cfg['tiktok_link'])): ?>
+              <a href="<?= htmlspecialchars($site_cfg['tiktok_link']) ?>" target="_blank" class="btn btn-light btn-icon text-muted border"><i class="fab fa-tiktok"></i></a>
+            <?php endif; ?>
           </div>
         </div>
 
-        <!-- Cột 2: Chính sách -->
+        <!-- Cột 2: Chính sách (Lấy tự động từ CSDL bảng Policy) -->
         <div class="col-lg-2 col-md-3 col-6 mb-4">
           <h6 class="font-weight-bold text-dark mb-3">Chính Sách</h6>
           <ul class="list-unstyled small text-muted">
-            <li class="mb-2"><a href="#" class="text-muted text-decoration-none">Chính sách bảo hành</a></li>
-            <li class="mb-2"><a href="#" class="text-muted text-decoration-none">Chính sách hoàn tiền</a></li>
-            <li class="mb-2"><a href="#" class="text-muted text-decoration-none">Phương thức vận chuyển</a></li>
-            <li><a href="#" class="text-muted text-decoration-none">Bảo mật thông tin</a></li>
+            <?php if (!empty($policies)): ?>
+              <?php foreach ($policies as $pol): ?>
+                <li class="mb-2">
+                  <a href="policy-detail.php?slug=<?= htmlspecialchars($pol['slug']) ?>" class="text-muted text-decoration-none">
+                    <?= htmlspecialchars($pol['title']) ?>
+                  </a>
+                </li>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <li class="mb-2"><a href="#" class="text-muted text-decoration-none">Chính sách bảo hành</a></li>
+              <li class="mb-2"><a href="#" class="text-muted text-decoration-none">Chính sách hoàn tiền</a></li>
+              <li class="mb-2"><a href="#" class="text-muted text-decoration-none">Phương thức vận chuyển</a></li>
+              <li><a href="#" class="text-muted text-decoration-none">Bảo mật thông tin</a></li>
+            <?php endif; ?>
           </ul>
         </div>
 
-        <!-- Cột 3: Hỗ trợ -->
+        <!-- Cột 3: Hỗ trợ (Lấy tự động từ CSDL bảng Policy) -->
         <div class="col-lg-2 col-md-3 col-6 mb-4">
           <h6 class="font-weight-bold text-dark mb-3">Hỗ Trợ</h6>
           <ul class="list-unstyled small text-muted">
-            <li class="mb-2"><a href="#" class="text-muted text-decoration-none">Tra cứu bảo hành</a></li>
-            <li class="mb-2"><a href="#" class="text-muted text-decoration-none">Theo dõi bưu kiện</a></li>
-            <li class="mb-2"><a href="#" class="text-muted text-decoration-none">Hướng dẫn thanh toán</a></li>
-            <li><a href="#" class="text-muted text-decoration-none">Liên hệ hợp tác</a></li>
+            <?php if (!empty($supports)): ?>
+              <?php foreach ($supports as $sup): ?>
+                <li class="mb-2">
+                  <a href="policy-detail.php?slug=<?= htmlspecialchars($sup['slug']) ?>" class="text-muted text-decoration-none">
+                    <?= htmlspecialchars($sup['title']) ?>
+                  </a>
+                </li>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <li class="mb-2"><a href="#" class="text-muted text-decoration-none">Tra cứu bảo hành</a></li>
+              <li class="mb-2"><a href="#" class="text-muted text-decoration-none">Theo dõi bưu kiện</a></li>
+              <li class="mb-2"><a href="#" class="text-muted text-decoration-none">Hướng dẫn thanh toán</a></li>
+              <li><a href="#" class="text-muted text-decoration-none">Liên hệ hợp tác</a></li>
+            <?php endif; ?>
           </ul>
         </div>
 
-        <!-- Cột 4: Giới thiệu Shop & Thông tin liên hệ -->
+        <!-- Cột 4: Giới thiệu Shop & Thông tin liên hệ (Lấy từ System_Settings) -->
         <div class="col-lg-4 col-md-12 mb-4">
           <h6 class="font-weight-bold text-dark mb-3">Về Chúng Tôi</h6>
           <p class="text-muted small mb-3">
-            <strong>NOVASHOP</strong> là đơn vị phân phối phụ kiện và thiết bị công nghệ chính hãng. Mọi sản phẩm bán ra đều được kiểm định chất lượng nghiêm ngặt kèm tem bảo hành rõ ràng.
+            <?= htmlspecialchars($site_cfg['about_company'] ?? 'NOVASHOP là đơn vị phân phối phụ kiện và thiết bị công nghệ chính hãng. Mọi sản phẩm bán ra đều được kiểm định chất lượng nghiêm ngặt kèm tem bảo hành rõ ràng.') ?>
           </p>
           <ul class="list-unstyled small text-muted">
             <li class="mb-2">
               <i class="fas fa-map-marker-alt text-primary mr-2"></i>
-              <span>Showroom: 123 Đường ABC, Quận 1, TP. HCM</span>
+              <span>Showroom: <?= htmlspecialchars($site_cfg['address'] ?? '123 Đường ABC, Quận 1, TP. HCM') ?></span>
             </li>
             <li class="mb-2">
               <i class="fas fa-phone-alt text-primary mr-2"></i>
-              <span>Hotline: <strong class="text-dark">1900 6868</strong> (8:00 - 21:30)</span>
+              <span>Hotline: <strong class="text-dark"><?= htmlspecialchars($site_cfg['hotline'] ?? '1900 6868') ?></strong>
+              <?php if (!empty($site_cfg['warranty_phone'])): ?>
+                (BH: <strong><?= htmlspecialchars($site_cfg['warranty_phone']) ?></strong>)
+              <?php endif; ?>
+              </span>
             </li>
             <li class="mb-2">
               <i class="fas fa-clock text-primary mr-2"></i>
-              <span>Giờ mở cửa: 08:00 - 22:00 tất cả các ngày</span>
+              <span>Giờ mở cửa: <?= htmlspecialchars($site_cfg['working_hours'] ?? '08:00 - 22:00 tất cả các ngày') ?></span>
             </li>
           </ul>
         </div>
@@ -90,7 +139,7 @@
 
     <!-- Dòng Copyright -->
     <div class="border-top py-3 text-center text-muted small">
-      &copy; 2026 NovaShop. Bản quyền thuộc về NovaShop.
+      &copy; <?= date('Y') ?> <?= htmlspecialchars($site_cfg['site_name'] ?? 'NovaShop') ?>. Bản quyền thuộc về <?= htmlspecialchars($site_cfg['site_name'] ?? 'NovaShop') ?>.
     </div>
   </footer>
 
@@ -108,7 +157,7 @@
             <span class="badge badge-success position-absolute rounded-circle p-1" style="bottom: 0; right: 0; border: 2px solid #fff;"> </span>
           </div>
           <div>
-            <h6 class="mb-0 font-weight-bold">NovaShop Support</h6>
+            <h6 class="mb-0 font-weight-bold"><?= htmlspecialchars($site_cfg['site_name'] ?? 'NovaShop') ?> Support</h6>
             <small class="text-light" style="font-size: 0.75rem;">Trực tuyến 24/7</small>
           </div>
         </div>
@@ -121,7 +170,7 @@
       <div class="card-body p-3 bg-light d-flex flex-column" id="chatbox-messages" style="overflow-y: auto; gap: 10px;">
         <div class="d-flex align-items-start">
           <div class="bg-white p-2 px-3 rounded-2xl shadow-sm text-dark small" style="max-width: 80%;">
-            Chào bạn! NovaShop có thể hỗ trợ thông tin gì cho bạn hôm nay ạ?
+            Chào bạn! <?= htmlspecialchars($site_cfg['site_name'] ?? 'NovaShop') ?> có thể hỗ trợ thông tin gì cho bạn hôm nay ạ?
           </div>
         </div>
       </div>
@@ -179,32 +228,34 @@
       }
     }
 
-    chatBtn.addEventListener('click', toggleChat);
-    closeBtn.addEventListener('click', toggleChat);
+    if (chatBtn) chatBtn.addEventListener('click', toggleChat);
+    if (closeBtn) closeBtn.addEventListener('click', toggleChat);
 
-    chatForm.addEventListener('submit', function(e) {
-      e.preventDefault();
-      const msg = chatInput.value.trim();
-      if (!msg) return;
+    if (chatForm) {
+      chatForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const msg = chatInput.value.trim();
+        if (!msg) return;
 
-      // Thêm tin nhắn của khách vào khung chat
-      const userMsgDiv = document.createElement('div');
-      userMsgDiv.className = 'd-flex align-items-end justify-content-end';
-      userMsgDiv.innerHTML = `<div class="bg-primary text-white p-2 px-3 rounded-2xl shadow-sm small" style="max-width: 80%;">${msg}</div>`;
-      chatMessages.appendChild(userMsgDiv);
+        // Thêm tin nhắn của khách vào khung chat
+        const userMsgDiv = document.createElement('div');
+        userMsgDiv.className = 'd-flex align-items-end justify-content-end';
+        userMsgDiv.innerHTML = `<div class="bg-primary text-white p-2 px-3 rounded-2xl shadow-sm small" style="max-width: 80%;">${msg}</div>`;
+        chatMessages.appendChild(userMsgDiv);
 
-      chatInput.value = '';
-      chatMessages.scrollTop = chatMessages.scrollHeight;
-
-      // Phản hồi mẫu tự động sau 800ms
-      setTimeout(() => {
-        const botMsgDiv = document.createElement('div');
-        botMsgDiv.className = 'd-flex align-items-start';
-        botMsgDiv.innerHTML = `<div class="bg-white p-2 px-3 rounded-2xl shadow-sm text-dark small" style="max-width: 80%;">Chuyên viên CSKH đã nhận được tin nhắn và sẽ phản hồi trong giây lát!</div>`;
-        chatMessages.appendChild(botMsgDiv);
+        chatInput.value = '';
         chatMessages.scrollTop = chatMessages.scrollHeight;
-      }, 800);
-    });
+
+        // Phản hồi mẫu tự động sau 800ms
+        setTimeout(() => {
+          const botMsgDiv = document.createElement('div');
+          botMsgDiv.className = 'd-flex align-items-start';
+          botMsgDiv.innerHTML = `<div class="bg-white p-2 px-3 rounded-2xl shadow-sm text-dark small" style="max-width: 80%;">Chuyên viên CSKH đã nhận được tin nhắn và sẽ phản hồi trong giây lát!</div>`;
+          chatMessages.appendChild(botMsgDiv);
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        }, 800);
+      });
+    }
   </script>
 </body>
 </html>

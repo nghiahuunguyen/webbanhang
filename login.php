@@ -3,15 +3,16 @@ date_default_timezone_set('Asia/Ho_Chi_Minh');
 session_start();
 require_once('database/dbhelper.php');
 
+// Lấy link muốn chuyển hướng đến sau khi đăng nhập (mặc định là index.php)
+$redirect_url = trim($_GET['redirect'] ?? ($_POST['redirect'] ?? ''));
+
 // Nếu đã đăng nhập thì điều hướng về đúng trang tương ứng
 if (isset($_SESSION['user'])) {
     $role = (int)($_SESSION['user']['role_id'] ?? 0);
     if ($role === 1 || $role === 3) {
-        // Admin hoặc Nhân viên vào trang quản trị
         header('Location: admin/index.php');
     } else {
-        // Khách hàng vào trang mua sắm
-        header('Location: index.php');
+        header('Location: ' . (!empty($redirect_url) ? $redirect_url : 'index.php'));
     }
     die();
 }
@@ -62,12 +63,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 setcookie('remember_account', '', time() - 3600, "/");
             }
 
-            // Phân luồng điều hướng: 1 (Admin) & 3 (Nhân viên) -> /admin/, 2 (Khách hàng) -> Trang chủ
+            // Phân luồng điều hướng:
+            // Admin (1) hoặc Nhân viên (3) luôn vào trang quản trị
+            // Khách hàng (2) quay lại trang xem dở (redirect) hoặc về trang chủ
             $user_role = (int)$user['role_id'];
             if ($user_role === 1 || $user_role === 3) {
                 header('Location: admin/index.php');
             } else {
-                header('Location: index.php');
+                if (!empty($redirect_url)) {
+                    header('Location: ' . $redirect_url);
+                } else {
+                    header('Location: index.php');
+                }
             }
             die();
         } else {
@@ -80,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 include 'includes/header.php'; 
 ?>
 
-<!-- TOAST THÔNG BÁO GÓC TRÊN BÊN PHẢI (TỰ BIẾN MẤT SAU 3S) -->
+<!-- TOAST THÔNG BÁO -->
 <?php if (!empty($toast_message)): ?>
   <div id="toast-wrapper" style="position: fixed; top: 25px; right: 25px; z-index: 99999; min-width: 320px; transition: all 0.5s ease;">
     <div class="toast show shadow-lg border-0" role="alert">
@@ -116,6 +123,9 @@ include 'includes/header.php';
         </div>
 
         <form action="" method="POST" novalidate>
+          <!-- Giữ lại link redirect khi bấm đăng nhập -->
+          <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirect_url) ?>">
+
           <div class="form-group mb-3">
             <label class="font-weight-semibold small text-muted">Tài khoản, Email hoặc Số điện thoại</label>
             <div class="input-group">
@@ -163,7 +173,7 @@ include 'includes/header.php';
         </form>
 
         <p class="text-center text-muted small mt-4 mb-0">
-          Chưa có tài khoản? <a href="register.php" class="text-primary font-weight-bold">Đăng ký ngay</a>
+          Chưa có tài khoản? <a href="register.php<?= !empty($redirect_url) ? '?redirect=' . urlencode($redirect_url) : '' ?>" class="text-primary font-weight-bold">Đăng ký ngay</a>
         </p>
       </div>
     </div>
@@ -172,7 +182,6 @@ include 'includes/header.php';
 
 <?php include 'includes/footer.php'; ?>
 
-<!-- SCRIPT TỰ BIẾN MẤT THÔNG BÁO SAU 3 GIÂY -->
 <script>
   window.addEventListener('load', function() {
     var toastBox = document.getElementById('toast-wrapper');

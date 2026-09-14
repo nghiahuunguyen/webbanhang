@@ -1,128 +1,145 @@
 <?php 
-  date_default_timezone_set('Asia/Ho_Chi_Minh');
-  if (session_status() === PHP_SESSION_NONE) {
-      session_start();
-  }
-  require_once('database/dbhelper.php');
-  include 'includes/header.php';
+date_default_timezone_set('Asia/Ho_Chi_Minh');
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+require_once('database/dbhelper.php');
+include 'includes/header.php';
 
-  // Kiểm tra nếu chưa đăng nhập thì chuyển về trang login
-  if (!isset($_SESSION['user'])) {
-      header('Location: login.php');
-      exit();
-  }
+// Kiểm tra nếu chưa đăng nhập thì chuyển về trang login
+if (!isset($_SESSION['user'])) {
+    header('Location: login.php');
+    exit();
+}
 
-  $user_id = (int)$_SESSION['user']['id'];
-  $toast_type    = '';
-  $toast_message = '';
+$user_id = (int)$_SESSION['user']['id'];
+$toast_type    = '';
+$toast_message = '';
 
-  // 1. XỬ LÝ CẬP NHẬT THÔNG TIN CÁ NHÂN
-  if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['btn_update_info'])) {
-      $fullname     = trim($_POST['fullname'] ?? '');
-      $phone_number = trim($_POST['phone_number'] ?? '');
-      
-      // Nhận 4 trường địa chỉ gửi lên từ form
-      $province     = trim($_POST['province'] ?? '');
-      $district     = trim($_POST['district'] ?? '');
-      $ward         = trim($_POST['ward'] ?? '');
-      $street       = trim($_POST['street'] ?? '');
+// 1. XỬ LÝ CẬP NHẬT THÔNG TIN CÁ NHÂN (HỌ TÊN, EMAIL, SĐT, ĐỊA CHỈ)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['btn_update_info'])) {
+    $fullname     = trim($_POST['fullname'] ?? '');
+    $email        = trim($_POST['email'] ?? '');
+    $phone_number = trim($_POST['phone_number'] ?? '');
+    
+    // Nhận 4 trường địa chỉ gửi lên từ form
+    $province     = trim($_POST['province'] ?? '');
+    $district     = trim($_POST['district'] ?? '');
+    $ward         = trim($_POST['ward'] ?? '');
+    $street       = trim($_POST['street'] ?? '');
 
-      if (empty($fullname)) {
-          $toast_type    = 'danger';
-          $toast_message = 'Vui lòng nhập họ và tên!';
-      } elseif (empty($phone_number)) {
-          $toast_type    = 'danger';
-          $toast_message = 'Vui lòng nhập số điện thoại!';
-      } elseif (!preg_match('/^0[0-9]{9}$/', $phone_number)) {
-          $toast_type    = 'danger';
-          $toast_message = 'Số điện thoại phải gồm đúng 10 số và bắt đầu bằng số 0!';
-      } else {
-          // Kiểm tra số điện thoại bị trùng lặp với tài khoản khác
-          $phone_escaped = addslashes($phone_number);
-          $checkPhone = executeResult("SELECT id FROM `User` WHERE phone_number = '$phone_escaped' AND id != '$user_id' AND deleted = 0 LIMIT 1", true);
+    if (empty($fullname)) {
+        $toast_type    = 'danger';
+        $toast_message = 'Vui lòng nhập họ và tên!';
+    } elseif (empty($email)) {
+        $toast_type    = 'danger';
+        $toast_message = 'Vui lòng nhập địa chỉ email!';
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $toast_type    = 'danger';
+        $toast_message = 'Địa chỉ email không đúng định dạng!';
+    } elseif (empty($phone_number)) {
+        $toast_type    = 'danger';
+        $toast_message = 'Vui lòng nhập số điện thoại!';
+    } elseif (!preg_match('/^0[0-9]{9}$/', $phone_number)) {
+        $toast_type    = 'danger';
+        $toast_message = 'Số điện thoại phải gồm đúng 10 số và bắt đầu bằng số 0!';
+    } else {
+        $email_escaped = addslashes($email);
+        $phone_escaped = addslashes($phone_number);
 
-          if ($checkPhone != null) {
-              $toast_type    = 'danger';
-              $toast_message = 'Số điện thoại này đã được tài khoản khác sử dụng!';
-          } else {
-              // Ghép chuỗi địa chỉ hoàn chỉnh: "Số nhà, Xã/Phường, Quận/Huyện, Tỉnh/TP"
-              $address_parts = array_filter([$street, $ward, $district, $province]);
-              $full_address  = implode(', ', $address_parts);
+        // Kiểm tra email trùng lặp với tài khoản khác
+        $checkEmail = executeResult("SELECT id FROM `User` WHERE email = '$email_escaped' AND id != '$user_id' AND deleted = 0 LIMIT 1", true);
 
-              $fullname_escaped = addslashes($fullname);
-              $address_escaped  = addslashes($full_address);
+        // Kiểm tra số điện thoại trùng lặp với tài khoản khác
+        $checkPhone = executeResult("SELECT id FROM `User` WHERE phone_number = '$phone_escaped' AND id != '$user_id' AND deleted = 0 LIMIT 1", true);
 
-              $sql = "UPDATE `User` 
-                      SET fullname = '$fullname_escaped', 
-                          phone_number = '$phone_escaped', 
-                          address = '$address_escaped', 
-                          updated_at = NOW() 
-                      WHERE id = '$user_id'";
-              execute($sql);
+        if ($checkEmail != null) {
+            $toast_type    = 'danger';
+            $toast_message = 'Địa chỉ email này đã được tài khoản khác sử dụng!';
+        } elseif ($checkPhone != null) {
+            $toast_type    = 'danger';
+            $toast_message = 'Số điện thoại này đã được tài khoản khác sử dụng!';
+        } else {
+            // Ghép chuỗi địa chỉ hoàn chỉnh: "Số nhà, Xã/Phường, Quận/Huyện, Tỉnh/TP"
+            $address_parts = array_filter([$street, $ward, $district, $province]);
+            $full_address  = implode(', ', $address_parts);
 
-              // Đồng bộ lại Session
-              $_SESSION['user']['fullname']     = $fullname;
-              $_SESSION['user']['phone_number'] = $phone_number;
-              $_SESSION['user']['address']      = $full_address;
+            $fullname_escaped = addslashes($fullname);
+            $address_escaped  = addslashes($full_address);
 
-              $toast_type    = 'success';
-              $toast_message = 'Cập nhật thông tin cá nhân thành công!';
-          }
-      }
-  }
+            $sql = "UPDATE `User` 
+                    SET fullname = '$fullname_escaped', 
+                        email = '$email_escaped', 
+                        phone_number = '$phone_escaped', 
+                        address = '$address_escaped', 
+                        updated_at = NOW() 
+                    WHERE id = '$user_id'";
+            execute($sql);
 
-  // 2. XỬ LÝ ĐỔI MẬT KHẨU
-  if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['btn_change_password'])) {
-      $current_pwd = $_POST['current_password'] ?? '';
-      $new_pwd     = $_POST['new_password'] ?? '';
-      $confirm_pwd = $_POST['confirm_password'] ?? '';
+            // Đồng bộ lại Session
+            $_SESSION['user']['fullname']     = $fullname;
+            $_SESSION['user']['email']        = $email;
+            $_SESSION['user']['phone_number'] = $phone_number;
+            $_SESSION['user']['address']      = $full_address;
 
-      if (empty($current_pwd) || empty($new_pwd) || empty($confirm_pwd)) {
-          $toast_type    = 'danger';
-          $toast_message = 'Vui lòng điền đầy đủ các thông tin mật khẩu!';
-      } elseif (strlen($new_pwd) < 6) {
-          $toast_type    = 'danger';
-          $toast_message = 'Mật khẩu mới phải có ít nhất 6 ký tự!';
-      } elseif ($new_pwd !== $confirm_pwd) {
-          $toast_type    = 'danger';
-          $toast_message = 'Mật khẩu mới và xác nhận mật khẩu không trùng khớp!';
-      } else {
-          $checkUser = executeResult("SELECT password FROM `User` WHERE id = '$user_id' LIMIT 1", true);
-          if ($checkUser == null || $checkUser['password'] !== md5($current_pwd)) {
-              $toast_type    = 'danger';
-              $toast_message = 'Mật khẩu hiện tại không chính xác!';
-          } else {
-              $new_pwd_hash = md5($new_pwd);
-              execute("UPDATE `User` SET password = '$new_pwd_hash', updated_at = NOW() WHERE id = '$user_id'");
-              
-              $toast_type    = 'success';
-              $toast_message = 'Đổi mật khẩu thành công!';
-          }
-      }
-  }
+            $toast_type    = 'success';
+            $toast_message = 'Cập nhật thông tin cá nhân và email thành công!';
+        }
+    }
+}
 
-  // Lấy dữ liệu người dùng mới nhất từ Database
-  $currentUser = executeResult("SELECT * FROM `User` WHERE id = '$user_id' LIMIT 1", true);
+// 2. XỬ LÝ ĐỔI MẬT KHẨU
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['btn_change_password'])) {
+    $current_pwd = $_POST['current_password'] ?? '';
+    $new_pwd     = $_POST['new_password'] ?? '';
+    $confirm_pwd = $_POST['confirm_password'] ?? '';
 
-  // Phân tách ngược chuỗi địa chỉ cũ (nếu có)
-  $raw_address = $currentUser['address'] ?? '';
-  $parsed_street   = '';
-  $parsed_ward     = '';
-  $parsed_district = '';
-  $parsed_province = '';
+    if (empty($current_pwd) || empty($new_pwd) || empty($confirm_pwd)) {
+        $toast_type    = 'danger';
+        $toast_message = 'Vui lòng điền đầy đủ các thông tin mật khẩu!';
+    } elseif (strlen($new_pwd) < 6) {
+        $toast_type    = 'danger';
+        $toast_message = 'Mật khẩu mới phải có ít nhất 6 ký tự!';
+    } elseif ($new_pwd !== $confirm_pwd) {
+        $toast_type    = 'danger';
+        $toast_message = 'Mật khẩu mới và xác nhận mật khẩu không trùng khớp!';
+    } else {
+        $checkUser = executeResult("SELECT password FROM `User` WHERE id = '$user_id' LIMIT 1", true);
+        if ($checkUser == null || $checkUser['password'] !== md5($current_pwd)) {
+            $toast_type    = 'danger';
+            $toast_message = 'Mật khẩu hiện tại không chính xác!';
+        } else {
+            $new_pwd_hash = md5($new_pwd);
+            execute("UPDATE `User` SET password = '$new_pwd_hash', updated_at = NOW() WHERE id = '$user_id'");
+            
+            $toast_type    = 'success';
+            $toast_message = 'Đổi mật khẩu thành công!';
+        }
+    }
+}
 
-  if (!empty($raw_address)) {
-      $parts = array_map('trim', explode(',', $raw_address));
-      $total_parts = count($parts);
-      if ($total_parts >= 4) {
-          $parsed_province = $parts[$total_parts - 1];
-          $parsed_district = $parts[$total_parts - 2];
-          $parsed_ward     = $parts[$total_parts - 3];
-          $parsed_street   = implode(', ', array_slice($parts, 0, $total_parts - 3));
-      } else {
-          $parsed_street   = $raw_address;
-      }
-  }
+// Lấy dữ liệu người dùng mới nhất từ Database
+$currentUser = executeResult("SELECT * FROM `User` WHERE id = '$user_id' LIMIT 1", true);
+
+// Phân tách ngược chuỗi địa chỉ cũ (nếu có)
+$raw_address = $currentUser['address'] ?? '';
+$parsed_street   = '';
+$parsed_ward     = '';
+$parsed_district = '';
+$parsed_province = '';
+
+if (!empty($raw_address)) {
+    $parts = array_map('trim', explode(',', $raw_address));
+    $total_parts = count($parts);
+    if ($total_parts >= 4) {
+        $parsed_province = $parts[$total_parts - 1];
+        $parsed_district = $parts[$total_parts - 2];
+        $parsed_ward     = $parts[$total_parts - 3];
+        $parsed_street   = implode(', ', array_slice($parts, 0, $total_parts - 3));
+    } else {
+        $parsed_street   = $raw_address;
+    }
+}
 ?>
 
 <!-- TOAST THÔNG BÁO GÓC PHẢI TRÊN (TỰ ẨN SAU 3 GIÂY) -->
@@ -179,12 +196,12 @@
         <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
           <div>
             <h5 class="font-weight-bold text-dark mb-1">Thông Tin Cá Nhân & Địa Chỉ Giao Hàng</h5>
-            <p class="text-muted small mb-0">Chọn Tỉnh / Huyện / Xã để thiết lập địa chỉ nhận hàng chính xác</p>
+            <p class="text-muted small mb-0">Cập nhật thông tin liên hệ và địa chỉ nhận hàng của bạn</p>
           </div>
           <span class="badge badge-success px-3 py-2">Đã kích hoạt</span>
         </div>
 
-        <form action="" method="POST" novalidate>
+        <form action="" method="POST">
           <div class="row">
             <div class="col-md-6 form-group mb-3">
               <label class="font-weight-semibold small text-muted">Họ và tên <span class="text-danger">*</span></label>
@@ -202,19 +219,21 @@
                 <div class="input-group-prepend">
                   <span class="input-group-text bg-light border-0"><i class="fas fa-phone-alt text-muted"></i></span>
                 </div>
-                <input type="tel" name="phone_number" class="form-control bg-light border-0 py-2" value="<?= htmlspecialchars($currentUser['phone_number'] ?? '') ?>" required>
+                <input type="tel" name="phone_number" class="form-control bg-light border-0 py-2" value="<?= htmlspecialchars($currentUser['phone_number'] ?? '') ?>" placeholder="0xxxxxxxxx" required>
               </div>
             </div>
           </div>
 
+          <!-- MỞ KHÓA TRƯỜNG EMAIL CHO PHÉP CHỈNH SỬA -->
           <div class="form-group mb-3">
-            <label class="font-weight-semibold small text-muted">Địa chỉ Email</label>
+            <label class="font-weight-semibold small text-muted">Địa chỉ Email <span class="text-danger">*</span></label>
             <div class="input-group">
               <div class="input-group-prepend">
                 <span class="input-group-text bg-light border-0"><i class="far fa-envelope text-muted"></i></span>
               </div>
-              <input type="email" class="form-control bg-light border-0 py-2" value="<?= htmlspecialchars($currentUser['email'] ?? '') ?>" readonly disabled style="cursor: not-allowed;">
+              <input type="email" name="email" class="form-control bg-light border-0 py-2" value="<?= htmlspecialchars($currentUser['email'] ?? '') ?>" placeholder="example@gmail.com" required>
             </div>
+            <small class="form-text text-muted">Email dùng để nhận thông báo trạng thái đơn hàng và hóa đơn thanh toán.</small>
           </div>
 
           <hr class="my-3">
@@ -273,7 +292,7 @@
           <p class="text-muted small mb-0">Cập nhật mật khẩu để bảo vệ an toàn cho tài khoản</p>
         </div>
 
-        <form action="" method="POST" novalidate>
+        <form action="" method="POST">
           <div class="row">
             <div class="col-md-4 form-group mb-3">
               <label class="font-weight-semibold small text-muted">Mật khẩu hiện tại</label>

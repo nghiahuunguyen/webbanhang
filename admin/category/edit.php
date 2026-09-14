@@ -1,6 +1,13 @@
 <?php 
 session_start();
 require_once('../../database/dbhelper.php');
+require_once('../check_role.php');
+
+// Cho phép Admin (1) và Nhân viên (3) truy cập
+if (!isset($_SESSION['user']) || !in_array($_SESSION['user']['role_id'], [1, 3])) {
+    header('Location: ../auth/login.php');
+    die();
+}
 
 $id = $_GET['id'] ?? '';
 if (empty($id)) {

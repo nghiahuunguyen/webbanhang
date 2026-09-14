@@ -142,3 +142,67 @@ ALTER TABLE `Order_Details`
 -- ==================== DỮ LIỆU BAN ĐẦU CẦN THIẾT ====================
 
 INSERT INTO `Role` (`id`, `name`) VALUES (1, 'Admin'), (2, 'User');
+
+-- 11. Bảng Giỏ hàng lưu theo tài khoản người dùng (Cart)
+CREATE TABLE `Cart` (
+  `id` int PRIMARY KEY AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `product_id` int NOT NULL,
+  `variant_id` int NOT NULL,
+  `num` int NOT NULL DEFAULT 1,
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `uk_user_variant` (`user_id`, `variant_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Khóa ngoại liên kết
+ALTER TABLE `Cart`
+  ADD CONSTRAINT `fk_cart_user` FOREIGN KEY (`user_id`) REFERENCES `User` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_cart_product` FOREIGN KEY (`product_id`) REFERENCES `Product` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_cart_variant` FOREIGN KEY (`variant_id`) REFERENCES `Product_Variant` (`id`) ON DELETE CASCADE;
+
+  -- 1. BẢNG CÀI ĐẶT HỆ THỐNG & BẬT/TẮT TRANG WEB
+CREATE TABLE IF NOT EXISTS `System_Settings` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `key_name` varchar(100) NOT NULL UNIQUE,
+  `key_value` text DEFAULT NULL,
+  `description` varchar(255) DEFAULT NULL,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 2. BẢNG QUẢN LÝ MENU
+CREATE TABLE IF NOT EXISTS `Menu` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `parent_id` int(11) DEFAULT 0 COMMENT '0: Cấp cha, >0: Cấp con trong dropdown',
+  `name` varchar(150) NOT NULL,
+  `link` varchar(255) NOT NULL DEFAULT '#',
+  `sort_order` int(11) DEFAULT 0,
+  `is_active` tinyint(1) DEFAULT 1 COMMENT '1: Hiện, 0: Ẩn',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 3. BẢNG QUẢN LÝ BANNER SLIDE TRANG CHỦ (Chỉ hiển thị ảnh)
+CREATE TABLE IF NOT EXISTS `Banner` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `image_url` varchar(255) NOT NULL COMMENT 'Đường dẫn ảnh banner',
+  `sort_order` int(11) DEFAULT 0 COMMENT 'Thứ tự hiển thị',
+  `is_active` tinyint(1) DEFAULT 1 COMMENT '1: Hiện, 0: Ẩn',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- 4. BẢNG QUẢN LÝ ĐIỀU KHOẢN & CHÍNH SÁCH
+CREATE TABLE IF NOT EXISTS `Policy` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `title` varchar(255) NOT NULL,
+  `slug` varchar(255) NOT NULL UNIQUE,
+  `content` longtext NOT NULL,
+  `group_type` enum('policy', 'support') DEFAULT 'policy' COMMENT 'policy: Chính sách, support: Hỗ trợ',
+  `sort_order` int(11) DEFAULT 0,
+  `is_active` tinyint(1) DEFAULT 1 COMMENT '1: Hiện, 0: Ẩn',
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
