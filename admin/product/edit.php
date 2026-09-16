@@ -45,7 +45,7 @@ if (!$product) {
 $categories = executeResult("SELECT * FROM Category WHERE deleted = 0 ORDER BY name ASC");
 $brands     = executeResult("SELECT * FROM Brand WHERE deleted = 0 ORDER BY name ASC");
 
-// Lấy danh sách biến thể hiện có của máy (kèm CPU)
+// Lấy danh sách biến thể hiện có của máy
 $variants   = executeResult("SELECT * FROM Product_Variant WHERE product_id = $id AND deleted = 0 ORDER BY id ASC");
 
 // Lấy danh sách ảnh phụ
@@ -53,8 +53,23 @@ $galleries  = executeResult("SELECT * FROM Galery WHERE product_id = $id ORDER B
 
 $error = '';
 
+function createSlug($str) {
+    $str = trim(mb_strtolower($str, 'UTF-8'));
+    $str = preg_replace('/(à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ)/', 'a', $str);
+    $str = preg_replace('/(è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ)/', 'e', $str);
+    $str = preg_replace('/(ì|í|ị|ỉ|ĩ)/', 'i', $str);
+    $str = preg_replace('/(ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ)/', 'o', $str);
+    $str = preg_replace('/(ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ)/', 'u', $str);
+    $str = preg_replace('/(ỳ|ý|ỵ|ỷ|ỹ)/', 'y', $str);
+    $str = preg_replace('/(đ)/', 'd', $str);
+    $str = preg_replace('/[^a-z0-9-\s]/', '', $str);
+    $str = preg_replace('/([\s]+)/', '-', $str);
+    return trim($str, '-');
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $title       = trim($_POST['title'] ?? '');
+    $slug        = trim($_POST['slug'] ?? '');
     $category_id = intval($_POST['category_id'] ?? 0);
     $brand_id    = intval($_POST['brand_id'] ?? 0);
     $description = trim($_POST['description'] ?? '');
@@ -79,117 +94,126 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (empty($v_price)) {
         $error = 'Sản phẩm phải có ít nhất một phiên bản cấu hình!';
     } else {
-        $upload_dir = '../../img/product/';
-        if (!is_dir($upload_dir)) {
-            mkdir($upload_dir, 0777, true);
-        }
-
-        // 1. Cập nhật ảnh đại diện nếu có chọn ảnh mới
-        $db_thumbnail = $product['thumbnail'];
-        if (isset($_FILES['thumbnail']) && $_FILES['thumbnail']['error'] === 0) {
-            $thumb_file = $_FILES['thumbnail'];
-            $ext = pathinfo($thumb_file['name'], PATHINFO_EXTENSION);
-            $thumb_name = time() . '_' . uniqid() . '.' . strtolower($ext);
-            $thumb_target = $upload_dir . $thumb_name;
-
-            if (move_uploaded_file($thumb_file['tmp_name'], $thumb_target)) {
-                if (!empty($product['thumbnail']) && file_exists('../../' . $product['thumbnail'])) {
-                    unlink('../../' . $product['thumbnail']);
-                }
-                $db_thumbnail = 'img/product/' . $thumb_name;
-            }
-        }
-
+        $slug = empty($slug) ? createSlug($title) : createSlug($slug);
         $safe_title       = str_replace("'", "\'", $title);
-        $safe_thumbnail   = str_replace("'", "\'", $db_thumbnail);
+        $safe_slug        = str_replace("'", "\'", $slug);
         $safe_description = str_replace("'", "\'", $description);
-        $updated_at       = date('Y-m-d H:i:s');
 
-        // 2. Cập nhật bảng Product
-        $sql_prod = "UPDATE Product SET 
-                        category_id = '$category_id',
-                        brand_id = '$brand_id',
-                        title = '$safe_title',
-                        thumbnail = '$safe_thumbnail',
-                        description = '$safe_description',
-                        updated_at = '$updated_at'
-                     WHERE id = $id";
-        execute($sql_prod);
-
-        // 3. Xử lý danh sách biến thể
-        $kept_variant_ids = [];
-        $total_rows = count($v_price);
-
-        for ($i = 0; $i < $total_rows; $i++) {
-            $cur_price = intval($v_price[$i] ?? 0);
-            if ($cur_price <= 0) continue;
-
-            $var_id_curr = intval($v_id[$i] ?? 0);
-            $color_val   = trim($v_color[$i] ?? '');
-            $cpu_val     = trim($v_cpu[$i] ?? '');
-            $ram_val     = trim($v_ram[$i] ?? '');
-            $storage_val = trim($v_storage[$i] ?? '');
-            $gpu_val     = trim($v_gpu[$i] ?? '');
-            $disc_val    = intval($v_discount[$i] ?? 0);
-            $stock_val   = intval($v_stock[$i] ?? 0);
-
-            if ($var_id_curr > 0) {
-                // Cập nhật biến thể cũ (bao gồm cả trường CPU)
-                $sql_u = "UPDATE Product_Variant SET 
-                            color = '$color_val',
-                            cpu = '$cpu_val',
-                            ram = '$ram_val',
-                            storage = '$storage_val',
-                            gpu = '$gpu_val',
-                            price = '$cur_price',
-                            discount = '$disc_val',
-                            stock_quantity = '$stock_val'
-                          WHERE id = $var_id_curr AND product_id = $id";
-                execute($sql_u);
-                $kept_variant_ids[] = $var_id_curr;
-            } else {
-                // Thêm mới dòng biến thể bổ sung
-                $sku_val = strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', $title), 0, 4)) . '-' . $id . '-' . time() . $i;
-                $sql_i = "INSERT INTO Product_Variant (product_id, sku, color, cpu, ram, storage, gpu, price, discount, stock_quantity, deleted)
-                          VALUES ('$id', '$sku_val', '$color_val', '$cpu_val', '$ram_val', '$storage_val', '$gpu_val', '$cur_price', '$disc_val', '$stock_val', 0)";
-                execute($sql_i);
-                
-                $new_v = executeResult("SELECT id FROM Product_Variant ORDER BY id DESC LIMIT 1", true);
-                if ($new_v) $kept_variant_ids[] = $new_v['id'];
+        // Kiểm tra xem slug có trùng với sản phẩm khác không
+        $check_slug = executeResult("SELECT id FROM Product WHERE slug = '$safe_slug' AND id != $id AND deleted = 0 LIMIT 1", true);
+        if ($check_slug) {
+            $error = 'Đường dẫn (Slug) này đã tồn tại ở sản phẩm khác!';
+        } else {
+            $upload_dir = '../../img/product/';
+            if (!is_dir($upload_dir)) {
+                mkdir($upload_dir, 0777, true);
             }
-        }
 
-        // Xóa các biến thể đã bị người dùng gỡ khỏi bảng giao diện
-        if (!empty($kept_variant_ids)) {
-            $kept_str = implode(',', $kept_variant_ids);
-            execute("UPDATE Product_Variant SET deleted = 1 WHERE product_id = $id AND id NOT IN ($kept_str)");
-        }
+            // 1. Cập nhật ảnh đại diện nếu có chọn ảnh mới
+            $db_thumbnail = $product['thumbnail'];
+            if (isset($_FILES['thumbnail']) && $_FILES['thumbnail']['error'] === 0) {
+                $thumb_file = $_FILES['thumbnail'];
+                $ext = pathinfo($thumb_file['name'], PATHINFO_EXTENSION);
+                $thumb_name = time() . '_' . uniqid() . '.' . strtolower($ext);
+                $thumb_target = $upload_dir . $thumb_name;
 
-        // 4. Tải thêm ảnh phụ vào Galery (nếu có chọn thêm)
-        if (isset($_FILES['galleries']) && !empty($_FILES['galleries']['name'][0])) {
-            $total_g = count($_FILES['galleries']['name']);
-            for ($k = 0; $k < $total_g; $k++) {
-                if ($_FILES['galleries']['error'][$k] === 0) {
-                    $g_ext = pathinfo($_FILES['galleries']['name'][$k], PATHINFO_EXTENSION);
-                    $g_name = time() . '_' . uniqid() . '_' . $k . '.' . strtolower($g_ext);
-                    $g_target = $upload_dir . $g_name;
+                if (move_uploaded_file($thumb_file['tmp_name'], $thumb_target)) {
+                    if (!empty($product['thumbnail']) && file_exists('../../' . $product['thumbnail'])) {
+                        unlink('../../' . $product['thumbnail']);
+                    }
+                    $db_thumbnail = 'img/product/' . $thumb_name;
+                }
+            }
 
-                    if (move_uploaded_file($_FILES['galleries']['tmp_name'][$k], $g_target)) {
-                        $db_g_path = 'img/product/' . $g_name;
-                        execute("INSERT INTO Galery (product_id, variant_id, thumbnail) VALUES ('$id', NULL, '$db_g_path')");
+            $safe_thumbnail = str_replace("'", "\'", $db_thumbnail);
+            $updated_at     = date('Y-m-d H:i:s');
+
+            // 2. Cập nhật bảng Product kèm slug
+            $sql_prod = "UPDATE Product SET 
+                            category_id = '$category_id',
+                            brand_id = '$brand_id',
+                            title = '$safe_title',
+                            slug = '$safe_slug',
+                            thumbnail = '$safe_thumbnail',
+                            description = '$safe_description',
+                            updated_at = '$updated_at'
+                         WHERE id = $id";
+            execute($sql_prod);
+
+            // 3. Xử lý danh sách biến thể
+            $kept_variant_ids = [];
+            $total_rows = count($v_price);
+
+            for ($i = 0; $i < $total_rows; $i++) {
+                $cur_price = intval($v_price[$i] ?? 0);
+                if ($cur_price <= 0) continue;
+
+                $var_id_curr = intval($v_id[$i] ?? 0);
+                $color_val   = trim($v_color[$i] ?? '');
+                $cpu_val     = trim($v_cpu[$i] ?? '');
+                $ram_val     = trim($v_ram[$i] ?? '');
+                $storage_val = trim($v_storage[$i] ?? '');
+                $gpu_val     = trim($v_gpu[$i] ?? '');
+                $disc_val    = intval($v_discount[$i] ?? 0);
+                $stock_val   = intval($v_stock[$i] ?? 0);
+
+                if ($var_id_curr > 0) {
+                    $sql_u = "UPDATE Product_Variant SET 
+                                color = '$color_val',
+                                cpu = '$cpu_val',
+                                ram = '$ram_val',
+                                storage = '$storage_val',
+                                gpu = '$gpu_val',
+                                price = '$cur_price',
+                                discount = '$disc_val',
+                                stock_quantity = '$stock_val'
+                              WHERE id = $var_id_curr AND product_id = $id";
+                    execute($sql_u);
+                    $kept_variant_ids[] = $var_id_curr;
+                } else {
+                    $sku_val = strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', $title), 0, 4)) . '-' . $id . '-' . time() . $i;
+                    $sql_i = "INSERT INTO Product_Variant (product_id, sku, color, cpu, ram, storage, gpu, price, discount, stock_quantity, deleted)
+                              VALUES ('$id', '$sku_val', '$color_val', '$cpu_val', '$ram_val', '$storage_val', '$gpu_val', '$cur_price', '$disc_val', '$stock_val', 0)";
+                    execute($sql_i);
+                    
+                    $new_v = executeResult("SELECT id FROM Product_Variant ORDER BY id DESC LIMIT 1", true);
+                    if ($new_v) $kept_variant_ids[] = $new_v['id'];
+                }
+            }
+
+            // Xóa các biến thể đã bị người dùng gỡ khỏi bảng giao diện
+            if (!empty($kept_variant_ids)) {
+                $kept_str = implode(',', $kept_variant_ids);
+                execute("UPDATE Product_Variant SET deleted = 1 WHERE product_id = $id AND id NOT IN ($kept_str)");
+            }
+
+            // 4. Tải thêm ảnh phụ vào Galery (nếu có chọn thêm)
+            if (isset($_FILES['galleries']) && !empty($_FILES['galleries']['name'][0])) {
+                $total_g = count($_FILES['galleries']['name']);
+                for ($k = 0; $k < $total_g; $k++) {
+                    if ($_FILES['galleries']['error'][$k] === 0) {
+                        $g_ext = pathinfo($_FILES['galleries']['name'][$k], PATHINFO_EXTENSION);
+                        $g_name = time() . '_' . uniqid() . '_' . $k . '.' . strtolower($g_ext);
+                        $g_target = $upload_dir . $g_name;
+
+                        if (move_uploaded_file($_FILES['galleries']['tmp_name'][$k], $g_target)) {
+                            $db_g_path = 'img/product/' . $g_name;
+                            execute("INSERT INTO Galery (product_id, variant_id, thumbnail) VALUES ('$id', NULL, '$db_g_path')");
+                        }
                     }
                 }
             }
-        }
 
-        $_SESSION['success_msg'] = "Cập nhật sản phẩm và biến thể thành công!";
-        header('Location: index.php');
-        die();
+            $_SESSION['success_msg'] = "Cập nhật sản phẩm và biến thể thành công!";
+            header('Location: index.php');
+            die();
+        }
     }
 }
 
 // Giữ lại dữ liệu đang nhập nếu có lỗi
 $title_val       = $_POST['title'] ?? $product['title'];
+$slug_val        = $_POST['slug'] ?? ($product['slug'] ?? '');
 $category_id_val = $_POST['category_id'] ?? $product['category_id'];
 $brand_id_val    = $_POST['brand_id'] ?? $product['brand_id'];
 $description_val = $_POST['description'] ?? $product['description'];
@@ -245,7 +269,15 @@ include '../layout/sidebar.php';
           <label class="font-weight-bold">Tên sản phẩm <span class="text-danger">*</span></label>
           <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($title_val) ?>" required autofocus>
         </div>
-        <div class="form-group col-md-3">
+        <div class="form-group col-md-6">
+          <label class="font-weight-bold">Đường dẫn thân thiện (Slug)</label>
+          <input type="text" name="slug" class="form-control" value="<?= htmlspecialchars($slug_val) ?>">
+          <small class="text-muted">Đường dẫn chuẩn SEO (VD: san-pham/iphone-15-pro-max.html).</small>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group col-md-6">
           <label class="font-weight-bold">Danh mục <span class="text-danger">*</span></label>
           <select name="category_id" class="form-control" required>
             <option value="">-- Chọn danh mục --</option>
@@ -256,7 +288,7 @@ include '../layout/sidebar.php';
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="form-group col-md-3">
+        <div class="form-group col-md-6">
           <label class="font-weight-bold">Hãng sản xuất <span class="text-danger">*</span></label>
           <select name="brand_id" class="form-control" required>
             <option value="">-- Chọn thương hiệu --</option>
@@ -293,7 +325,6 @@ include '../layout/sidebar.php';
         </div>
       </div>
 
-      <!-- Bộ sưu tập ảnh hiện tại kèm nút xóa -->
       <?php if (!empty($galleries)): ?>
         <div class="form-group">
           <label class="font-weight-bold small text-muted text-uppercase mb-2">Thư viện ảnh hiện tại (Nhấn vào nút đỏ để xóa ảnh):</label>
@@ -324,7 +355,7 @@ include '../layout/sidebar.php';
 
       <hr class="my-4">
 
-      <!-- KHỐI 2: QUẢN LÝ BIẾN THỂ CẤU HÌNH & GIÁ (ĐÃ THÊM CPU) -->
+      <!-- KHỐI 2: BIẾN THỂ CẤU HÌNH & BẢNG GIÁ -->
       <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
           <h6 class="text-primary font-weight-bold text-uppercase small tracking-wider mb-0">2. Cấu hình, Màu sắc & Giá bán</h6>
@@ -402,7 +433,6 @@ include '../layout/sidebar.php';
 <?php include '../layout/scripts.php'; ?>
 
 <script>
-  // Gán sự kiện xóa dòng cho các nút
   function attachRemoveEvent() {
     var removeButtons = document.querySelectorAll('.btn-remove-row');
     removeButtons.forEach(function (btn) {
@@ -419,7 +449,6 @@ include '../layout/sidebar.php';
   }
   attachRemoveEvent();
 
-  // Nút thêm dòng biến thể mới (đã bổ sung ô input CPU)
   document.getElementById('btnAddVariant').addEventListener('click', function () {
     var tableBody = document.querySelector('#variantTable tbody');
     var newRow = document.createElement('tr');
@@ -443,7 +472,6 @@ include '../layout/sidebar.php';
     attachRemoveEvent();
   });
 
-  // Tự động ẩn Toast thông báo sau 3s
   window.addEventListener('load', function() {
     var toastBox = document.getElementById('toast-wrapper');
     if (toastBox) {

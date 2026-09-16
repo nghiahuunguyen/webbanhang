@@ -34,7 +34,7 @@ if (!$product) {
     die();
 }
 
-// 2. Lấy toàn bộ biến thể cấu hình (CPU, RAM, Ổ cứng, GPU, Màu sắc, Giá, Kho)
+// 2. Lấy toàn bộ biến thể cấu hình
 $variants = executeResult("SELECT * FROM Product_Variant WHERE product_id = $id AND deleted = 0 ORDER BY price ASC");
 
 // 3. Lấy album ảnh bộ sưu tập (Galery)
@@ -63,6 +63,9 @@ include '../layout/sidebar.php';
         <small class="text-muted">Mã định danh sản phẩm: #PROD-<?= $product['id'] ?></small>
       </div>
       <div class="mt-2 mt-md-0">
+        <a href="../../san-pham/<?= htmlspecialchars($product['slug'] ?? '') ?>.html" target="_blank" class="btn btn-sm btn-outline-primary font-weight-bold mr-1">
+          <i class="fas fa-external-link-alt mr-1"></i> Xem ngoài Web
+        </a>
         <a href="edit.php?id=<?= $product['id'] ?>" class="btn btn-sm btn-warning font-weight-bold mr-1 text-white">
           <i class="fas fa-edit mr-1"></i> Chỉnh sửa
         </a>
@@ -111,12 +114,15 @@ include '../layout/sidebar.php';
 
         <!-- Cột thông tin chi tiết -->
         <div class="col-lg-8 col-md-7">
-          <div class="d-flex align-items-center mb-3 flex-wrap">
-            <span class="badge badge-pill badge-primary px-3 py-2 mr-2 font-weight-bold">
+          <div class="d-flex align-items-center mb-3 flex-wrap" style="gap: 8px;">
+            <span class="badge badge-pill badge-primary px-3 py-2 font-weight-bold">
               Danh mục: <?= htmlspecialchars($product['category_name'] ?? 'Chưa phân loại') ?>
             </span>
             <span class="badge badge-pill badge-info px-3 py-2 font-weight-bold">
               Hãng: <?= htmlspecialchars($product['brand_name'] ?? 'Chưa rõ') ?>
+            </span>
+            <span class="badge badge-pill badge-secondary px-3 py-2 font-weight-bold">
+              Slug: <?= htmlspecialchars($product['slug'] ?? '—') ?>
             </span>
           </div>
 

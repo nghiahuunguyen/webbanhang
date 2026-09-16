@@ -1,4 +1,5 @@
 <?php 
+date_default_timezone_set('Asia/Ho_Chi_Minh');
 session_start();
 require_once('../../database/dbhelper.php');
 require_once('../check_role.php');
@@ -8,16 +9,30 @@ if (!isset($_SESSION['user']) || !in_array($_SESSION['user']['role_id'], [1, 3])
     header('Location: ../auth/login.php');
     die();
 }
-// Lấy thông báo và xóa session ngay để không bị hiện lại khi F5
+
 $success_msg = $_SESSION['success_msg'] ?? '';
 unset($_SESSION['success_msg']);
 
-// 1. Chỉ lấy những danh mục chưa bị xóa (deleted = 0)
-$categories = executeResult("SELECT * FROM category WHERE deleted = 0 ORDER BY id DESC");
+// Cấu hình phân trang: 5 danh mục / trang
+$limit = 5;
+$page = isset($_GET['page']) ? intval($_GET['page']) : 1;
+if ($page < 1) $page = 1;
+
+$countCat = executeResult("SELECT COUNT(id) as total FROM Category WHERE deleted = 0", true);
+$total_records = intval($countCat['total'] ?? 0);
+$total_pages = ceil($total_records / $limit);
+if ($total_pages > 0 && $page > $total_pages) $page = $total_pages;
+
+$start = ($page - 1) * $limit;
+if ($start < 0) $start = 0;
+
+// 1. Chỉ lấy những danh mục chưa bị xóa (deleted = 0) theo từng trang
+$categories = executeResult("SELECT * FROM Category WHERE deleted = 0 ORDER BY id DESC LIMIT $start, $limit");
 
 // 2. Đếm số lượng danh mục đang nằm trong thùng rác (deleted = 1)
-$countTrash = executeResult("SELECT COUNT(id) as total FROM category WHERE deleted = 1", true);
-$total_trash = $countTrash['total'] ?? 0;
+$countTrash = executeResult("SELECT COUNT(id) as total FROM Category WHERE deleted = 1", true);
+$total_trash = intval($countTrash['total'] ?? 0);
+
 $page_title = 'Quản Lý Danh Mục';
 include '../layout/head.php'; 
 include '../layout/sidebar.php'; 
@@ -47,9 +62,9 @@ include '../layout/sidebar.php';
   <?php include '../layout/topbar.php'; ?>
 
   <div class="custom-card">
-    <div class="p-3 px-4 d-flex justify-content-between align-items-center border-bottom">
+    <div class="p-3 px-4 d-flex justify-content-between align-items-center border-bottom flex-wrap">
       <h5 class="font-weight-bold mb-0 text-dark">Quản Lý Danh Mục</h5>
-      <div>
+      <div class="mt-2 mt-md-0">
         <a href="trash.php" class="btn btn-sm btn-outline-danger font-weight-bold mr-2">
           <i class="fas fa-trash-alt mr-1"></i> Thùng rác 
           <span class="badge badge-danger"><?= $total_trash ?></span>
@@ -61,46 +76,95 @@ include '../layout/sidebar.php';
     </div>
 
     <div class="p-4 table-responsive">
-      <table class="table table-bordered table-hover mb-0">
+      <table class="table table-bordered table-hover mb-0 align-middle">
         <thead class="thead-light">
           <tr>
             <th width="70px" class="text-center align-middle">STT</th>
             <th class="align-middle">TÊN DANH MỤC</th>
+            <th class="align-middle">ĐƯỜNG DẪN (SLUG)</th>
             <th width="120px" class="text-center align-middle">HÀNH ĐỘNG</th>
           </tr>
         </thead>
         <tbody>
           <?php if (!empty($categories)): ?>
-            <?php $index = 1; foreach ($categories as $item): ?>
+            <?php $index = $start + 1; foreach ($categories as $item): ?>
               <tr>
-                <td class="text-center align-middle"><?= $index++ ?></td>
-                <td class="align-middle"><?= htmlspecialchars($item['name']) ?></td>
+                <td class="text-center align-middle font-weight-bold"><?= $index++ ?></td>
+                <td class="align-middle font-weight-bold text-dark"><?= htmlspecialchars($item['name']) ?></td>
+                <td class="align-middle">
+                  <code class="text-break small"><?= htmlspecialchars($item['slug'] ?? '') ?></code>
+                  <a href="../../danh-muc/<?= htmlspecialchars($item['slug'] ?? '') ?>" target="_blank" class="ml-2 small text-primary" title="Xem danh mục ngoài web">
+                    <i class="fas fa-external-link-alt"></i>
+                  </a>
+                </td>
                 <td class="text-center align-middle">
                   <div class="d-inline-flex align-items-center">
                     <a href="edit.php?id=<?= $item['id'] ?>" class="btn btn-sm btn-outline-warning mr-2" title="Sửa">
                       <i class="fas fa-edit"></i>
                     </a>
-                   <a href="delete.php?id=<?= $item['id'] ?>" class="btn btn-sm btn-outline-danger" title="Xóa">
-                    <i class="fas fa-trash-alt"></i>
-                  </a>
+                    <a href="delete.php?id=<?= $item['id'] ?>" 
+                       class="btn btn-sm btn-outline-danger" title="Xóa vào thùng rác">
+                      <i class="fas fa-trash-alt"></i>
+                    </a>
                   </div>
                 </td>
               </tr>
             <?php endforeach; ?>
           <?php else: ?>
             <tr>
-              <td colspan="3" class="text-center text-muted py-4 align-middle">Chưa có danh mục nào.</td>
+              <td colspan="4" class="text-center text-muted py-4 align-middle">Chưa có danh mục nào.</td>
             </tr>
           <?php endif; ?>
         </tbody>
       </table>
     </div>
+
+    <!-- PHÂN TRANG -->
+    <?php if ($total_pages > 1): ?>
+      <div class="card-footer bg-white border-top py-3">
+        <nav class="d-flex justify-content-center">
+          <ul class="pagination pagination-custom mb-0">
+            <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+              <a class="page-link" href="?page=<?= $page - 1 ?>"><i class="fas fa-chevron-left fa-xs"></i></a>
+            </li>
+            <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+              <?php if ($i == 1 || $i == $total_pages || ($i >= $page - 2 && $i <= $page + 2)): ?>
+                <li class="page-item <?= ($page == $i) ? 'active' : '' ?>">
+                  <a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a>
+                </li>
+              <?php elseif ($i == $page - 3 || $i == $page + 3): ?>
+                <li class="page-item disabled"><span class="page-link border-0">...</span></li>
+              <?php endif; ?>
+            <?php endfor; ?>
+            <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
+              <a class="page-link" href="?page=<?= $page + 1 ?>"><i class="fas fa-chevron-right fa-xs"></i></a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+
+      <style>
+        .pagination-custom { display: flex; align-items: center; gap: 6px; }
+        .pagination-custom .page-item .page-link {
+          min-width: 36px; height: 36px; padding: 0 10px;
+          display: inline-flex; align-items: center; justify-content: center;
+          font-weight: 600; font-size: 0.875rem; color: #4b5563;
+          background-color: #f3f4f6; border: 1px solid transparent;
+          border-radius: 50rem !important; transition: all 0.2s ease;
+        }
+        .pagination-custom .page-item .page-link:hover { background-color: #e5e7eb; color: #111827; }
+        .pagination-custom .page-item.active .page-link {
+          background-color: #2563eb; border-color: #2563eb; color: #ffffff;
+          box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
+        }
+        .pagination-custom .page-item.disabled .page-link { background-color: transparent; color: #9ca3af; cursor: not-allowed; }
+      </style>
+    <?php endif; ?>
   </div>
 </main>
 
 <?php include '../layout/scripts.php'; ?>
 
-<!-- SCRIPT ĐẾM NGƯỢC 3 GIÂY ĐỂ ẨN VÀ XÓA THÔNG BÁO -->
 <script>
   window.addEventListener('load', function() {
     var toastBox = document.getElementById('toast-wrapper');

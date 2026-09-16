@@ -12,7 +12,7 @@ if (!isset($_SESSION['user']) || !in_array($_SESSION['user']['role_id'], [1, 3])
 $success_msg = $_SESSION['success_msg'] ?? '';
 unset($_SESSION['success_msg']);
 
-// 1. Cấu hình phân trang: 10 sản phẩm / trang
+// 1. Cấu hình phân trang: 5 sản phẩm / trang
 $limit = 5;
 $page = isset($_GET['page']) ? intval($_GET['page']) : 1;
 if ($page < 1) $page = 1;
@@ -26,16 +26,15 @@ if ($total_pages > 0 && $page > $total_pages) $page = $total_pages;
 $start = ($page - 1) * $limit;
 if ($start < 0) $start = 0;
 
-// 3. Lấy danh sách sản phẩm theo trang kết hợp bảng Brand, Category và Product_Variant
+// 3. Lấy danh sách sản phẩm theo trang kèm cột is_featured
 $sql = "SELECT 
             p.*, 
             c.name AS category_name, 
             b.name AS brand_name,
-            b.logo AS brand_logo,
             COUNT(v.id) AS total_variants,
             MIN(v.price - v.discount) AS min_price,
             MAX(v.price - v.discount) AS max_price,
-            SUM(v.stock_quantity) AS total_stock
+            COALESCE(SUM(v.stock_quantity), 0) AS total_stock
         FROM Product p
         LEFT JOIN Category c ON p.category_id = c.id
         LEFT JOIN Brand b ON p.brand_id = b.id
@@ -46,6 +45,19 @@ $sql = "SELECT
         LIMIT $start, $limit";
 $products = executeResult($sql);
 
+// Lấy danh sách biến thể theo các sản phẩm trên trang
+$product_ids = !empty($products) ? array_column($products, 'id') : [];
+$variants_by_prod = [];
+if (!empty($product_ids)) {
+    $ids_str = implode(',', $product_ids);
+    $all_variants = executeResult("SELECT * FROM Product_Variant WHERE product_id IN ($ids_str) AND deleted = 0 ORDER BY price ASC");
+    if (!empty($all_variants)) {
+        foreach ($all_variants as $v) {
+            $variants_by_prod[$v['product_id']][] = $v;
+        }
+    }
+}
+
 // 4. Đếm số lượng sản phẩm trong thùng rác
 $countTrash = executeResult("SELECT COUNT(id) as total FROM Product WHERE deleted = 1", true);
 $total_trash = $countTrash['total'] ?? 0;
@@ -55,23 +67,27 @@ include '../layout/head.php';
 include '../layout/sidebar.php'; 
 ?>
 
-<!-- TOAST THÔNG BÁO GÓC PHẢI TRÊN (TỰ ẨN SAU 3S) -->
-<?php if (!empty($success_msg)): ?>
-  <div id="toast-wrapper" style="position: fixed; top: 20px; right: 20px; z-index: 99999; min-width: 320px; transition: all 0.5s ease;">
-    <div class="toast show shadow-lg border-0" role="alert">
-      <div class="toast-header bg-success text-white">
-        <i class="fas fa-check-circle mr-2"></i>
-        <strong class="mr-auto">Thông báo</strong>
-        <small class="text-white">Vừa xong</small>
-        <button type="button" class="ml-2 mb-1 close text-white" onclick="document.getElementById('toast-wrapper').remove()" style="outline: none;">
-          <span>&times;</span>
-        </button>
-      </div>
-      <div class="toast-body bg-white text-dark font-weight-bold">
-        <?= htmlspecialchars($success_msg) ?>
-      </div>
+<!-- TOAST THÔNG BÁO GÓC PHẢI TRÊN -->
+<div id="dynamic-toast-wrapper" style="position: fixed; top: 20px; right: 20px; z-index: 99999; min-width: 320px; display: none; transition: all 0.4s ease;">
+  <div class="toast show shadow-lg border-0" role="alert">
+    <div class="toast-header bg-success text-white" id="toastHeader">
+      <i class="fas fa-check-circle mr-2" id="toastIcon"></i>
+      <strong class="mr-auto" id="toastTitle">Thông báo</strong>
+      <small class="text-white">Vừa xong</small>
+      <button type="button" class="ml-2 mb-1 close text-white" onclick="document.getElementById('dynamic-toast-wrapper').style.display='none'" style="outline: none;">
+        <span>&times;</span>
+      </button>
     </div>
+    <div class="toast-body bg-white text-dark font-weight-bold" id="toastBody"></div>
   </div>
+</div>
+
+<?php if (!empty($success_msg)): ?>
+  <script>
+    window.addEventListener('DOMContentLoaded', function() {
+      showToast('<?= addslashes($success_msg) ?>', true);
+    });
+  </script>
 <?php endif; ?>
 
 <!-- MAIN CONTENT -->
@@ -82,6 +98,7 @@ include '../layout/sidebar.php';
     <div class="p-3 px-4 d-flex justify-content-between align-items-center border-bottom flex-wrap">
       <div>
         <h5 class="font-weight-bold mb-0 text-dark">Quản Lý Sản Phẩm</h5>
+        <small class="text-muted">Tổng cộng <?= number_format($total_records, 0, ',', '.') ?> thiết bị</small>
       </div>
       <div class="mt-2 mt-md-0">
         <a href="trash.php" class="btn btn-sm btn-outline-danger font-weight-bold mr-2">
@@ -100,17 +117,17 @@ include '../layout/sidebar.php';
           <tr>
             <th width="50px" class="text-center align-middle">STT</th>
             <th width="75px" class="text-center align-middle">ẢNH</th>
-            <th width="260px" class="align-middle">TÊN THIẾT BỊ</th>
+            <th width="240px" class="align-middle">TÊN THIẾT BỊ</th>
+            <th width="100px" class="text-center align-middle">NỔI BẬT</th>
             <th width="140px" class="align-middle">HÃNG / DANH MỤC</th>
-            <th width="180px" class="align-middle">KHOẢNG GIÁ BÁN</th>
-            <th width="110px" class="text-center align-middle">TỒN KHO</th>
+            <th width="150px" class="align-middle">KHOẢNG GIÁ</th>
+            <th width="120px" class="text-center align-middle">TỒN KHO</th>
             <th width="120px" class="text-center align-middle">HÀNH ĐỘNG</th>
           </tr>
         </thead>
         <tbody>
           <?php if (!empty($products)): ?>
             <?php 
-              // STT chuẩn theo từng trang
               $index = $start + 1; 
               foreach ($products as $item): 
                 $thumb_path = '../../' . $item['thumbnail'];
@@ -122,8 +139,10 @@ include '../layout/sidebar.php';
                 $max_p = (int)($item['max_price'] ?? 0);
                 $stock = (int)($item['total_stock'] ?? 0);
                 $total_variants = (int)($item['total_variants'] ?? 0);
+                $is_feat = (int)($item['is_featured'] ?? 0);
+                $variants_list = $variants_by_prod[$item['id']] ?? [];
             ?>
-              <tr>
+              <tr id="row-prod-<?= $item['id'] ?>">
                 <td class="text-center align-middle font-weight-bold"><?= $index++ ?></td>
 
                 <!-- Ảnh sản phẩm -->
@@ -139,9 +158,27 @@ include '../layout/sidebar.php';
                 <!-- Tên sản phẩm & số cấu hình -->
                 <td class="align-middle">
                   <span class="font-weight-bold text-dark d-block"><?= htmlspecialchars($item['title']) ?></span>
-                  <span class="badge badge-light border text-primary small font-weight-bold mt-1">
-                    <i class="fas fa-layer-group mr-1"></i><?= $total_variants ?> phiên bản cấu hình
-                  </span>
+                  <div class="mt-1 d-flex align-items-center flex-wrap" style="gap: 4px;">
+                    <span class="badge badge-light border text-primary small font-weight-bold">
+                      <i class="fas fa-layer-group mr-1"></i><?= $total_variants ?> phiên bản
+                    </span>
+                    <?php if (!empty($item['slug'])): ?>
+                      <a href="../../san-pham/<?= htmlspecialchars($item['slug']) ?>.html" target="_blank" class="badge badge-light border text-muted small" title="Xem trên web">
+                        <i class="fas fa-external-link-alt mr-1"></i>Link
+                      </a>
+                    <?php endif; ?>
+                  </div>
+                </td>
+
+                <!-- Nổi bật (Toggle Ajax) -->
+                <td class="text-center align-middle">
+                  <button type="button" 
+                          class="btn btn-sm btn-featured <?= $is_feat === 1 ? 'btn-warning text-dark font-weight-bold' : 'btn-outline-secondary' ?>" 
+                          onclick="toggleFeatured(<?= $item['id'] ?>, this)"
+                          title="Bấm để bật/tắt nổi bật">
+                    <i class="fas fa-star <?= $is_feat === 1 ? '' : 'far' ?>"></i>
+                    <span><?= $is_feat === 1 ? 'Nổi bật' : 'Thường' ?></span>
+                  </button>
                 </td>
 
                 <!-- Hãng và Danh mục -->
@@ -154,7 +191,7 @@ include '../layout/sidebar.php';
                   </span>
                 </td>
 
-                <!-- Khoảng giá bán thực tế theo cấu hình -->
+                <!-- Khoảng giá bán thực tế -->
                 <td class="align-middle">
                   <?php if ($total_variants > 0): ?>
                     <?php if ($min_p === $max_p): ?>
@@ -170,16 +207,30 @@ include '../layout/sidebar.php';
                       </small>
                     <?php endif; ?>
                   <?php else: ?>
-                    <span class="text-muted small italic">Chưa có giá</span>
+                    <span class="text-muted small font-italic">Chưa có giá</span>
                   <?php endif; ?>
                 </td>
 
-                <!-- Tồn kho -->
+                <!-- Tồn kho & Nút sửa nhanh số lượng -->
                 <td class="text-center align-middle">
-                  <?php if ($stock > 0): ?>
-                    <span class="badge badge-success px-2 py-1 font-weight-bold"><?= $stock ?> máy</span>
-                  <?php else: ?>
-                    <span class="badge badge-danger px-2 py-1 font-weight-bold">Hết hàng</span>
+                  <div>
+                    <?php if ($stock > 0): ?>
+                      <span class="badge badge-success px-2 py-1 font-weight-bold" id="total-stock-label-<?= $item['id'] ?>"><?= $stock ?> máy</span>
+                    <?php else: ?>
+                      <span class="badge badge-danger px-2 py-1 font-weight-bold" id="total-stock-label-<?= $item['id'] ?>">Hết hàng</span>
+                    <?php endif; ?>
+                  </div>
+                  <?php if (!empty($variants_list)): ?>
+                    <button type="button" 
+                            class="btn btn-xs btn-outline-primary mt-1 font-weight-bold" 
+                            style="font-size: 0.72rem; padding: 2px 6px;"
+                            onclick="openStockModal(<?= htmlspecialchars(json_encode([
+                              'product_id' => $item['id'],
+                              'title' => $item['title'],
+                              'variants' => $variants_list
+                            ])) ?>)">
+                      <i class="fas fa-cubes mr-1"></i>Cập nhật kho
+                    </button>
                   <?php endif; ?>
                 </td>
 
@@ -192,7 +243,10 @@ include '../layout/sidebar.php';
                     <a href="edit.php?id=<?= $item['id'] ?>" class="btn btn-sm btn-outline-warning mr-2" title="Chỉnh sửa chi tiết">
                       <i class="fas fa-edit"></i>
                     </a>
-                    <a href="delete.php?id=<?= $item['id'] ?>" class="btn btn-sm btn-outline-danger" title="Xóa vào thùng rác">
+                    <a href="delete.php?id=<?= $item['id'] ?>" 
+                       class="btn btn-sm btn-outline-danger" 
+                       title="Xóa vào thùng rác"
+                       onclick="return confirm('Bạn có chắc muốn chuyển sản phẩm này vào thùng rác?');">
                       <i class="fas fa-trash-alt"></i>
                     </a>
                   </div>
@@ -201,106 +255,216 @@ include '../layout/sidebar.php';
             <?php endforeach; ?>
           <?php else: ?>
             <tr>
-              <td colspan="7" class="text-center text-muted py-4 align-middle">Chưa có sản phẩm nào.</td>
+              <td colspan="8" class="text-center text-muted py-4 align-middle">Chưa có sản phẩm nào.</td>
             </tr>
           <?php endif; ?>
         </tbody>
       </table>
     </div>
 
-    <!-- THANH PHÂN TRANG (PAGINATION) -->
+    <!-- THANH PHÂN TRANG -->
     <?php if ($total_pages > 1): ?>
-  <div class="card-footer bg-white border-top py-3">
-    <nav class="d-flex justify-content-center">
-      <ul class="pagination pagination-custom mb-0">
-        <!-- Nút Trang Trước -->
-        <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
-          <a class="page-link" href="?page=<?= $page - 1 ?>" aria-label="Trước">
-            <i class="fas fa-chevron-left fa-xs"></i>
-          </a>
-        </li>
-
-        <!-- Các nút số trang -->
-        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-          <?php if ($i == 1 || $i == $total_pages || ($i >= $page - 2 && $i <= $page + 2)): ?>
-            <li class="page-item <?= ($page == $i) ? 'active' : '' ?>">
-              <a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a>
+      <div class="card-footer bg-white border-top py-3">
+        <nav class="d-flex justify-content-center">
+          <ul class="pagination pagination-custom mb-0">
+            <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+              <a class="page-link" href="?page=<?= $page - 1 ?>" aria-label="Trước">
+                <i class="fas fa-chevron-left fa-xs"></i>
+              </a>
             </li>
-          <?php elseif ($i == $page - 3 || $i == $page + 3): ?>
-            <li class="page-item disabled"><span class="page-link border-0">...</span></li>
-          <?php endif; ?>
-        <?php endfor; ?>
 
-        <!-- Nút Trang Kế Tiếp -->
-        <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
-          <a class="page-link" href="?page=<?= $page + 1 ?>" aria-label="Sau">
-            <i class="fas fa-chevron-right fa-xs"></i>
-          </a>
-        </li>
-      </ul>
-    </nav>
-  </div>
+            <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+              <?php if ($i == 1 || $i == $total_pages || ($i >= $page - 2 && $i <= $page + 2)): ?>
+                <li class="page-item <?= ($page == $i) ? 'active' : '' ?>">
+                  <a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a>
+                </li>
+              <?php elseif ($i == $page - 3 || $i == $page + 3): ?>
+                <li class="page-item disabled"><span class="page-link border-0">...</span></li>
+              <?php endif; ?>
+            <?php endfor; ?>
 
-  <style>
-    /* Style nút phân trang bo tròn hiện đại */
-    .pagination-custom {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .pagination-custom .page-item .page-link {
-      min-width: 36px;
-      height: 36px;
-      padding: 0 10px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 600;
-      font-size: 0.875rem;
-      color: #4b5563;
-      background-color: #f3f4f6;
-      border: 1px solid transparent;
-      border-radius: 50rem !important;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    .pagination-custom .page-item .page-link:hover {
-      background-color: #e5e7eb;
-      color: #111827;
-      transform: translateY(-1px);
-    }
-    .pagination-custom .page-item.active .page-link {
-      background-color: #2563eb;
-      border-color: #2563eb;
-      color: #ffffff;
-      box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
-    }
-    .pagination-custom .page-item.disabled .page-link {
-      background-color: transparent;
-      color: #9ca3af;
-      cursor: not-allowed;
-      box-shadow: none;
-      transform: none;
-    }
-  </style>
-<?php endif; ?>
+            <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
+              <a class="page-link" href="?page=<?= $page + 1 ?>" aria-label="Sau">
+                <i class="fas fa-chevron-right fa-xs"></i>
+              </a>
+            </li>
+          </ul>
+        </nav>
+      </div>
 
+      <style>
+        .pagination-custom { display: flex; align-items: center; gap: 6px; }
+        .pagination-custom .page-item .page-link {
+          min-width: 36px; height: 36px; padding: 0 10px;
+          display: inline-flex; align-items: center; justify-content: center;
+          font-weight: 600; font-size: 0.875rem; color: #4b5563;
+          background-color: #f3f4f6; border: 1px solid transparent;
+          border-radius: 50rem !important; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .pagination-custom .page-item .page-link:hover { background-color: #e5e7eb; color: #111827; }
+        .pagination-custom .page-item.active .page-link {
+          background-color: #2563eb; border-color: #2563eb; color: #ffffff;
+          box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
+        }
+        .pagination-custom .page-item.disabled .page-link { background-color: transparent; color: #9ca3af; cursor: not-allowed; }
+      </style>
+    <?php endif; ?>
   </div>
 </main>
 
+<!-- MODAL CẬP NHẬT TỒN KHO TỪNG PHIÊN BẢN -->
+<div class="modal fade" id="stockModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title font-weight-bold">
+          <i class="fas fa-warehouse mr-2"></i>Cập Nhật Tồn Kho Theo Phiên Bản
+        </h5>
+        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body p-4">
+        <h6 class="font-weight-bold text-dark mb-3" id="stockModalProdTitle"></h6>
+        <div class="table-responsive">
+          <table class="table table-bordered table-sm align-middle mb-0">
+            <thead class="thead-light">
+              <tr>
+                <th>MÃ SKU</th>
+                <th>CẤU HÌNH (MÀU / RAM / BỘ NHỚ)</th>
+                <th>GIÁ BÁN</th>
+                <th width="150px">SỐ LƯỢNG KHO</th>
+                <th width="100px" class="text-center">LƯU</th>
+              </tr>
+            </thead>
+            <tbody id="stockModalTbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer bg-light py-2">
+        <button type="button" class="btn btn-secondary btn-sm px-3 font-weight-bold" data-dismiss="modal">Đóng</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <?php include '../layout/scripts.php'; ?>
 
-<!-- SCRIPT TỰ BIẾN MẤT THÔNG BÁO SAU 3 GIÂY -->
 <script>
-  window.addEventListener('load', function() {
-    var toastBox = document.getElementById('toast-wrapper');
-    if (toastBox) {
-      setTimeout(function() {
-        toastBox.style.opacity = '0';
-        toastBox.style.transform = 'translateX(50px)';
-        setTimeout(function() {
-          toastBox.remove();
-        }, 500);
-      }, 3000);
+  function showToast(msg, isSuccess = true) {
+    var wrapper = document.getElementById('dynamic-toast-wrapper');
+    var header = document.getElementById('toastHeader');
+    var title = document.getElementById('toastTitle');
+    var body = document.getElementById('toastBody');
+    var icon = document.getElementById('toastIcon');
+
+    if (isSuccess) {
+      header.className = 'toast-header bg-success text-white';
+      icon.className = 'fas fa-check-circle mr-2';
+      title.textContent = 'Thành công';
+    } else {
+      header.className = 'toast-header bg-danger text-white';
+      icon.className = 'fas fa-exclamation-circle mr-2';
+      title.textContent = 'Lỗi';
     }
-  });
+
+    body.textContent = msg;
+    wrapper.style.display = 'block';
+
+    setTimeout(function() {
+      wrapper.style.display = 'none';
+    }, 3000);
+  }
+
+  // 1. AJAX Ghim / Bỏ ghim Sản phẩm nổi bật
+  function toggleFeatured(productId, btn) {
+    btn.disabled = true;
+    var formData = new FormData();
+    formData.append('id', productId);
+
+    fetch('toggle_featured.php', {
+      method: 'POST',
+      body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+      btn.disabled = false;
+      if (data.status) {
+        if (data.is_featured === 1) {
+          btn.className = 'btn btn-sm btn-featured btn-warning text-dark font-weight-bold';
+          btn.innerHTML = '<i class="fas fa-star"></i> <span>Nổi bật</span>';
+        } else {
+          btn.className = 'btn btn-sm btn-featured btn-outline-secondary';
+          btn.innerHTML = '<i class="far fa-star"></i> <span>Thường</span>';
+        }
+        showToast(data.message, true);
+      } else {
+        showToast(data.message, false);
+      }
+    })
+    .catch(() => {
+      btn.disabled = false;
+      showToast('Lỗi kết nối máy chủ!', false);
+    });
+  }
+
+  // 2. Mở Modal Cập nhật số lượng tồn kho
+  function openStockModal(data) {
+    document.getElementById('stockModalProdTitle').textContent = data.title;
+    var tbody = document.getElementById('stockModalTbody');
+    tbody.innerHTML = '';
+
+    data.variants.forEach(function(v) {
+      var specText = [v.color, v.ram, v.storage].filter(Boolean).join(' - ') || 'Tiêu chuẩn';
+      var priceFmt = (v.price - v.discount).toLocaleString('vi-VN') + ' đ';
+
+      var tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="align-middle font-weight-bold text-muted">${v.sku || '—'}</td>
+        <td class="align-middle">${specText}</td>
+        <td class="align-middle font-weight-bold text-danger">${priceFmt}</td>
+        <td class="align-middle">
+          <input type="number" min="0" class="form-control form-control-sm text-center font-weight-bold" id="input-stock-${v.id}" value="${v.stock_quantity}">
+        </td>
+        <td class="align-middle text-center">
+          <button type="button" class="btn btn-sm btn-primary py-1 px-2 font-weight-bold" onclick="updateVariantStock(${v.id}, ${data.product_id}, this)">
+            <i class="fas fa-save mr-1"></i>Lưu
+          </button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    $('#stockModal').modal('show');
+  }
+
+  // 3. AJAX Lưu số lượng tồn kho theo variant
+  function updateVariantStock(variantId, productId, btn) {
+    var input = document.getElementById('input-stock-' + variantId);
+    var newQty = parseInt(input.value) || 0;
+    if (newQty < 0) newQty = 0;
+
+    btn.disabled = true;
+    var formData = new FormData();
+    formData.append('variant_id', variantId);
+    formData.append('quantity', newQty);
+
+    fetch('update_stock.php', {
+      method: 'POST',
+      body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+      btn.disabled = false;
+      if (data.status) {
+        showToast(data.message, true);
+      } else {
+        showToast(data.message, false);
+      }
+    })
+    .catch(() => {
+      btn.disabled = false;
+      showToast('Lỗi máy chủ khi cập nhật tồn kho!', false);
+    });
+  }
 </script>

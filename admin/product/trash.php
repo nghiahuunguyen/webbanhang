@@ -28,7 +28,7 @@ if ($total_pages > 0 && $page > $total_pages) $page = $total_pages;
 $start = ($page - 1) * $limit;
 if ($start < 0) $start = 0;
 
-// 3. Lấy danh sách sản phẩm đã xóa tạm (deleted = 1) kèm Hãng, Danh mục và khoảng giá biến thể theo trang
+// 3. Lấy danh sách sản phẩm đã xóa tạm
 $sql = "SELECT 
             p.*, 
             c.name AS category_name, 
@@ -50,7 +50,7 @@ include '../layout/head.php';
 include '../layout/sidebar.php'; 
 ?>
 
-<!-- TOAST THÔNG BÁO GÓC TRÊN BÊN PHẢI (TỰ BIẾN MẤT SAU 3S) -->
+<!-- TOAST THÔNG BÁO GÓC TRÊN BÊN PHẢI -->
 <?php if (!empty($success_msg)): ?>
   <div id="toast-wrapper" style="position: fixed; top: 20px; right: 20px; z-index: 99999; min-width: 320px; transition: all 0.5s ease;">
     <div class="toast show shadow-lg border-0" role="alert">
@@ -90,9 +90,10 @@ include '../layout/sidebar.php';
           <tr>
             <th width="50px" class="text-center align-middle">STT</th>
             <th width="75px" class="text-center align-middle">ẢNH</th>
-            <th width="260px" class="align-middle">TÊN THIẾT BỊ</th>
-            <th width="140px" class="align-middle">HÃNG / DANH MỤC</th>
-            <th width="180px" class="align-middle">KHOẢNG GIÁ</th>
+            <th width="240px" class="align-middle">TÊN THIẾT BỊ</th>
+            <th width="150px" class="align-middle">ĐƯỜNG DẪN (SLUG)</th>
+            <th width="130px" class="align-middle">HÃNG / DANH MỤC</th>
+            <th width="160px" class="align-middle">KHOẢNG GIÁ</th>
             <th width="120px" class="text-center align-middle">TÁC VỤ</th>
           </tr>
         </thead>
@@ -113,7 +114,6 @@ include '../layout/sidebar.php';
               <tr>
                 <td class="text-center align-middle font-weight-bold"><?= $index++ ?></td>
                 
-                <!-- Hình ảnh sản phẩm -->
                 <td class="text-center align-middle">
                   <img src="<?= $thumb_src ?>" 
                        alt="<?= htmlspecialchars($item['title']) ?>" 
@@ -123,7 +123,6 @@ include '../layout/sidebar.php';
                        style="object-fit: cover;">
                 </td>
 
-                <!-- Tên sản phẩm & số cấu hình -->
                 <td class="align-middle">
                   <span class="font-weight-bold text-dark d-block"><?= htmlspecialchars($item['title']) ?></span>
                   <span class="badge badge-light border text-muted small mt-1">
@@ -131,7 +130,10 @@ include '../layout/sidebar.php';
                   </span>
                 </td>
 
-                <!-- Hãng và Danh mục -->
+                <td class="align-middle">
+                  <code class="text-break small"><?= htmlspecialchars($item['slug'] ?? '') ?></code>
+                </td>
+
                 <td class="align-middle">
                   <div class="font-weight-bold text-dark mb-1">
                     <i class="fas fa-tag text-muted mr-1"></i><?= htmlspecialchars($item['brand_name'] ?? 'Chưa rõ') ?>
@@ -141,7 +143,6 @@ include '../layout/sidebar.php';
                   </span>
                 </td>
 
-                <!-- Khoảng giá -->
                 <td class="align-middle">
                   <?php if ($total_variants > 0): ?>
                     <?php if ($min_p === $max_p): ?>
@@ -161,14 +162,11 @@ include '../layout/sidebar.php';
                   <?php endif; ?>
                 </td>
 
-                <!-- Tác vụ khôi phục / Xóa vĩnh viễn -->
                 <td class="text-center align-middle">
                   <div class="d-inline-flex align-items-center">
-                    <!-- Nút khôi phục -->
                     <a href="restore.php?id=<?= $item['id'] ?>" class="btn btn-outline-success btn-sm mr-2" title="Khôi phục sản phẩm">
                       <i class="fas fa-undo"></i>
                     </a>
-                    <!-- Nút mở popup xác nhận xóa vĩnh viễn -->
                     <button type="button" 
                             class="btn btn-outline-danger btn-sm" 
                             title="Xóa vĩnh viễn" 
@@ -181,93 +179,64 @@ include '../layout/sidebar.php';
             <?php endforeach; ?>
           <?php else: ?>
             <tr>
-              <td colspan="6" class="text-center text-muted py-4 align-middle">Thùng rác trống.</td>
+              <td colspan="7" class="text-center text-muted py-4 align-middle">Thùng rác trống.</td>
             </tr>
           <?php endif; ?>
         </tbody>
       </table>
     </div>
 
-    <!-- THANH PHÂN TRANG (PAGINATION) -->
+    <!-- PHÂN TRANG -->
     <?php if ($total_pages > 1): ?>
-  <div class="card-footer bg-white border-top py-3">
-    <nav class="d-flex justify-content-center">
-      <ul class="pagination pagination-custom mb-0">
-        <!-- Nút Trang Trước -->
-        <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
-          <a class="page-link" href="?page=<?= $page - 1 ?>" aria-label="Trước">
-            <i class="fas fa-chevron-left fa-xs"></i>
-          </a>
-        </li>
-
-        <!-- Các nút số trang -->
-        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-          <?php if ($i == 1 || $i == $total_pages || ($i >= $page - 2 && $i <= $page + 2)): ?>
-            <li class="page-item <?= ($page == $i) ? 'active' : '' ?>">
-              <a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a>
+      <div class="card-footer bg-white border-top py-3">
+        <nav class="d-flex justify-content-center">
+          <ul class="pagination pagination-custom mb-0">
+            <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+              <a class="page-link" href="?page=<?= $page - 1 ?>" aria-label="Trước">
+                <i class="fas fa-chevron-left fa-xs"></i>
+              </a>
             </li>
-          <?php elseif ($i == $page - 3 || $i == $page + 3): ?>
-            <li class="page-item disabled"><span class="page-link border-0">...</span></li>
-          <?php endif; ?>
-        <?php endfor; ?>
 
-        <!-- Nút Trang Kế Tiếp -->
-        <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
-          <a class="page-link" href="?page=<?= $page + 1 ?>" aria-label="Sau">
-            <i class="fas fa-chevron-right fa-xs"></i>
-          </a>
-        </li>
-      </ul>
-    </nav>
-  </div>
+            <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+              <?php if ($i == 1 || $i == $total_pages || ($i >= $page - 2 && $i <= $page + 2)): ?>
+                <li class="page-item <?= ($page == $i) ? 'active' : '' ?>">
+                  <a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a>
+                </li>
+              <?php elseif ($i == $page - 3 || $i == $page + 3): ?>
+                <li class="page-item disabled"><span class="page-link border-0">...</span></li>
+              <?php endif; ?>
+            <?php endfor; ?>
 
-  <style>
-    /* Style nút phân trang bo tròn hiện đại */
-    .pagination-custom {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .pagination-custom .page-item .page-link {
-      min-width: 36px;
-      height: 36px;
-      padding: 0 10px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 600;
-      font-size: 0.875rem;
-      color: #4b5563;
-      background-color: #f3f4f6;
-      border: 1px solid transparent;
-      border-radius: 50rem !important;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    .pagination-custom .page-item .page-link:hover {
-      background-color: #e5e7eb;
-      color: #111827;
-      transform: translateY(-1px);
-    }
-    .pagination-custom .page-item.active .page-link {
-      background-color: #2563eb;
-      border-color: #2563eb;
-      color: #ffffff;
-      box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
-    }
-    .pagination-custom .page-item.disabled .page-link {
-      background-color: transparent;
-      color: #9ca3af;
-      cursor: not-allowed;
-      box-shadow: none;
-      transform: none;
-    }
-  </style>
-<?php endif; ?>
+            <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
+              <a class="page-link" href="?page=<?= $page + 1 ?>" aria-label="Sau">
+                <i class="fas fa-chevron-right fa-xs"></i>
+              </a>
+            </li>
+          </ul>
+        </nav>
+      </div>
 
+      <style>
+        .pagination-custom { display: flex; align-items: center; gap: 6px; }
+        .pagination-custom .page-item .page-link {
+          min-width: 36px; height: 36px; padding: 0 10px;
+          display: inline-flex; align-items: center; justify-content: center;
+          font-weight: 600; font-size: 0.875rem; color: #4b5563;
+          background-color: #f3f4f6; border: 1px solid transparent;
+          border-radius: 50rem !important; transition: all 0.2s ease;
+        }
+        .pagination-custom .page-item .page-link:hover { background-color: #e5e7eb; color: #111827; }
+        .pagination-custom .page-item.active .page-link {
+          background-color: #2563eb; border-color: #2563eb; color: #ffffff;
+          box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
+        }
+        .pagination-custom .page-item.disabled .page-link { background-color: transparent; color: #9ca3af; cursor: not-allowed; }
+      </style>
+    <?php endif; ?>
   </div>
 </main>
 
-<!-- MODAL XÁC NHẬN XÓA VĨNH VIỄN -->
+<!-- MODAL XÁC NHẬN XÓA -->
 <div class="modal fade" id="deleteModal" tabindex="-1" role="dialog" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered" role="document">
     <div class="modal-content border-0 shadow">
@@ -294,7 +263,6 @@ include '../layout/sidebar.php';
 
 <?php include '../layout/scripts.php'; ?>
 
-<!-- SCRIPT ĐIỀU KHIỂN MODAL VÀ TỰ ẨN THÔNG BÁO -->
 <script>
   function confirmDelete(id) {
     document.getElementById('btnConfirmDelete').href = 'force_delete.php?id=' + id;
@@ -307,9 +275,7 @@ include '../layout/sidebar.php';
       setTimeout(function() {
         toastBox.style.opacity = '0';
         toastBox.style.transform = 'translateX(50px)';
-        setTimeout(function() {
-          toastBox.remove();
-        }, 500);
+        setTimeout(function() { toastBox.remove(); }, 500);
       }, 3000);
     }
   });

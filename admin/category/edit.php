@@ -1,4 +1,5 @@
 <?php 
+date_default_timezone_set('Asia/Ho_Chi_Minh');
 session_start();
 require_once('../../database/dbhelper.php');
 require_once('../check_role.php');
@@ -15,24 +16,52 @@ if (empty($id)) {
     die();
 }
 
+$id = intval($id);
+$category = executeResult("SELECT * FROM Category WHERE id = $id AND deleted = 0", true);
+if (!$category) {
+    header('Location: index.php');
+    die();
+}
+
 $error = '';
+
+function createSlug($str) {
+    $str = trim(mb_strtolower($str, 'UTF-8'));
+    $str = preg_replace('/(à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ)/', 'a', $str);
+    $str = preg_replace('/(è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ)/', 'e', $str);
+    $str = preg_replace('/(ì|í|ị|ỉ|ĩ)/', 'i', $str);
+    $str = preg_replace('/(ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ)/', 'o', $str);
+    $str = preg_replace('/(ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ)/', 'u', $str);
+    $str = preg_replace('/(ỳ|ý|ỵ|ỷ|ỹ)/', 'y', $str);
+    $str = preg_replace('/(đ)/', 'd', $str);
+    $str = preg_replace('/[^a-z0-9-\s]/', '', $str);
+    $str = preg_replace('/([\s]+)/', '-', $str);
+    return trim($str, '-');
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
+    $slug = trim($_POST['slug'] ?? '');
 
     if (empty($name)) {
         $error = 'Vui lòng nhập tên loại sản phẩm!';
     } elseif (mb_strlen($name, 'UTF-8') < 2) {
         $error = 'Tên danh mục phải có ít nhất 2 ký tự!';
     } else {
+        $slug = empty($slug) ? createSlug($name) : createSlug($slug);
         $safe_name = str_replace("'", "\'", $name);
+        $safe_slug = str_replace("'", "\'", $slug);
 
-        // Kiểm tra xem tên mới có bị trùng với danh mục khác không (loại trừ chính nó)
-        $check = executeResult("SELECT id FROM category WHERE name = '$safe_name' AND id != '$id'", true);
-        if ($check != null) {
+        // Kiểm tra xem tên hoặc slug mới có trùng với danh mục khác không
+        $check_name = executeResult("SELECT id FROM Category WHERE name = '$safe_name' AND id != $id AND deleted = 0", true);
+        $check_slug = executeResult("SELECT id FROM Category WHERE slug = '$safe_slug' AND id != $id AND deleted = 0", true);
+
+        if ($check_name != null) {
             $error = 'Tên danh mục này đã tồn tại!';
+        } elseif ($check_slug != null) {
+            $error = 'Đường dẫn (Slug) này đã tồn tại ở danh mục khác!';
         } else {
-            $sql = "UPDATE category SET name = '$safe_name' WHERE id = '$id'";
+            $sql = "UPDATE Category SET name = '$safe_name', slug = '$safe_slug' WHERE id = $id";
             execute($sql);
 
             $_SESSION['success_msg'] = "Cập nhật danh mục thành công!";
@@ -42,21 +71,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Lấy thông tin danh mục từ database
-$category = executeResult("SELECT * FROM category WHERE id = '$id'", true);
-if (!$category) {
-    header('Location: index.php');
-    die();
-}
-
-// Nếu có lỗi nhập thì giữ lại tên vừa nhập, còn không thì dùng tên từ CSDL
 $current_name = isset($_POST['name']) ? $_POST['name'] : $category['name'];
+$current_slug = isset($_POST['slug']) ? $_POST['slug'] : ($category['slug'] ?? '');
 $page_title = 'Chỉnh Sửa Danh Mục';
-include '../layout/head.php'; 
+include '../layout/head.php';  
 include '../layout/sidebar.php'; 
 ?>
 
-<!-- TOAST THÔNG BÁO LỖI GÓC PHẢI TRÊN (TỰ ẨN SAU 3 GIÂY) -->
+<!-- TOAST THÔNG BÁO LỖI GÓC PHẢI TRÊN -->
 <?php if (!empty($error)): ?>
   <div id="toast-wrapper" style="position: fixed; top: 20px; right: 20px; z-index: 99999; min-width: 300px; transition: all 0.5s ease;">
     <div class="toast show shadow-lg border-0" role="alert">
@@ -81,21 +103,30 @@ include '../layout/sidebar.php';
 
   <div class="custom-card">
     <div class="p-3 px-4 d-flex justify-content-between align-items-center border-bottom">
-      <h5 class="font-weight-bold mb-0 text-dark">Chỉnh Sửa Loại / Danh Mục</h5>
+      <h5 class="font-weight-bold mb-0 text-dark">Chỉnh Sửa Loại / Danh Mục #<?= $category['id'] ?></h5>
       <a href="index.php" class="btn btn-sm btn-secondary font-weight-bold">
         <i class="fas fa-arrow-left mr-1"></i> Quay lại
       </a>
     </div>
 
     <form class="p-4" method="POST" novalidate>
-      <div class="form-group">
-        <label class="font-weight-bold">Tên loại sản phẩm</label>
+      <div class="form-group mb-3">
+        <label class="font-weight-bold">Tên loại sản phẩm <span class="text-danger">*</span></label>
         <input type="text" 
                name="name" 
                class="form-control <?= !empty($error) ? 'is-invalid' : '' ?>" 
-               value="<?php echo htmlspecialchars($current_name); ?>" 
+               value="<?= htmlspecialchars($current_name) ?>" 
                required 
                autofocus>
+      </div>
+
+      <div class="form-group mb-4">
+        <label class="font-weight-bold">Đường dẫn thân thiện (Slug)</label>
+        <input type="text" 
+               name="slug" 
+               class="form-control" 
+               value="<?= htmlspecialchars($current_slug) ?>">
+        <small class="text-muted">Đường dẫn dùng cho SEO ngoài giao diện web.</small>
       </div>
 
       <button type="submit" class="btn btn-warning px-4 font-weight-bold text-white">
@@ -107,7 +138,6 @@ include '../layout/sidebar.php';
 
 <?php include '../layout/scripts.php'; ?>
 
-<!-- SCRIPT TỰ ĐỘNG BIẾN MẤT THÔNG BÁO SAU 3 GIÂY -->
 <script>
   window.addEventListener('load', function() {
     var toastBox = document.getElementById('toast-wrapper');

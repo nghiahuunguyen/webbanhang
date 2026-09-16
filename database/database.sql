@@ -171,17 +171,7 @@ CREATE TABLE IF NOT EXISTS `System_Settings` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 2. BẢNG QUẢN LÝ MENU
-CREATE TABLE IF NOT EXISTS `Menu` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `parent_id` int(11) DEFAULT 0 COMMENT '0: Cấp cha, >0: Cấp con trong dropdown',
-  `name` varchar(150) NOT NULL,
-  `link` varchar(255) NOT NULL DEFAULT '#',
-  `sort_order` int(11) DEFAULT 0,
-  `is_active` tinyint(1) DEFAULT 1 COMMENT '1: Hiện, 0: Ẩn',
-  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 -- 3. BẢNG QUẢN LÝ BANNER SLIDE TRANG CHỦ (Chỉ hiển thị ảnh)
 CREATE TABLE IF NOT EXISTS `Banner` (
@@ -210,3 +200,27 @@ CREATE TABLE IF NOT EXISTS `Policy` (
 
 ALTER TABLE `Banner` ADD COLUMN `deleted` TINYINT(1) DEFAULT 0 COMMENT '0: Hoạt động, 1: Trong thùng rác';
 ALTER TABLE `Policy` ADD COLUMN `deleted` TINYINT(1) DEFAULT 0 COMMENT '0: Hoạt động, 1: Trong thùng rác';
+-- Bước 1: Thêm cột slug cho phép tạm thời nhận giá trị NULL (chưa đánh UNIQUE)
+ALTER TABLE `Category` 
+ADD COLUMN `slug` varchar(150) NULL AFTER `name`;
+
+-- Bước 2: Tự động gán giá trị duy nhất tạm thời dựa theo id cho các bản ghi cũ
+UPDATE `Category` 
+SET `slug` = CONCAT('danh-muc-', `id`) 
+WHERE `slug` IS NULL OR `slug` = '';
+
+-- Bước 3: Đổi cột thành NOT NULL và thêm ràng buộc UNIQUE an toàn
+ALTER TABLE `Category` 
+MODIFY COLUMN `slug` varchar(150) NOT NULL,
+ADD UNIQUE (`slug`);
+-- 1. Bảng Brand (Thương hiệu)
+ALTER TABLE `Brand` ADD COLUMN `slug` varchar(150) NULL AFTER `name`;
+UPDATE `Brand` SET `slug` = CONCAT('thuong-hieu-', `id`) WHERE `slug` IS NULL OR `slug` = '';
+ALTER TABLE `Brand` MODIFY COLUMN `slug` varchar(150) NOT NULL, ADD UNIQUE (`slug`);
+
+-- 2. Bảng Product (Sản phẩm)
+ALTER TABLE `Product` ADD COLUMN `slug` varchar(350) NULL AFTER `title`;
+UPDATE `Product` SET `slug` = CONCAT('san-pham-', `id`) WHERE `slug` IS NULL OR `slug` = '';
+ALTER TABLE `Product` MODIFY COLUMN `slug` varchar(350) NOT NULL, ADD UNIQUE (`slug`);
+ALTER TABLE `Product` 
+ADD COLUMN `is_featured` tinyint(1) NOT NULL DEFAULT 0 COMMENT '0: Bình thường, 1: Nổi bật' AFTER `deleted`;

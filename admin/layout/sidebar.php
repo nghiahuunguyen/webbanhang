@@ -1,7 +1,8 @@
 <?php
-$current_uri = $_SERVER['REQUEST_URI'] ?? '';
-$currentUser = $_SESSION['user'] ?? null;
+$current_uri  = $_SERVER['REQUEST_URI'] ?? '';
+$currentUser  = $_SESSION['user'] ?? null;
 $current_role = (int)($currentUser['role_id'] ?? 0);
+$is_admin     = ($current_role === 1);
 ?>
 
 <nav id="sidebar" class="col-md-3 col-lg-2 px-0 d-none d-md-block">
@@ -11,7 +12,7 @@ $current_role = (int)($currentUser['role_id'] ?? 0);
   </div>
 
   <ul class="nav flex-column mt-2">
-    <!-- Dashboard -->
+    <!-- Bảng điều khiển -->
     <li class="nav-item">
       <a class="nav-link <?= (preg_match('#/admin/(index\.php)?$#', $current_uri)) ? 'active font-weight-bold' : '' ?>" 
          href="/webbanhang/admin/index.php">
@@ -58,67 +59,62 @@ $current_role = (int)($currentUser['role_id'] ?? 0);
     <li class="nav-item">
       <a class="nav-link <?= (strpos($current_uri, '/order/') !== false || strpos($current_uri, 'order.php') !== false) ? 'active font-weight-bold' : '' ?>" 
          href="/webbanhang/admin/order/index.php">
-        <i class="fas fa-shopping-bag mr-2"></i> Đơn hàng (orders)
-      </a>
-    </li>
-
-    
-  </ul>
-
-  <!-- NHÓM HỆ THỐNG -->
-  <div class="menu-header mt-3">Hệ thống</div>
-  <ul class="nav flex-column mb-4">
-    <li class="nav-item">
-      <a class="nav-link <?= (strpos($current_uri, 'feedback.php') !== false) ? 'active font-weight-bold' : '' ?>" 
-         href="/webbanhang/admin/feedback.php">
-        <i class="fas fa-comment-dots mr-2"></i> Đánh giá (feedback)
-      </a>
-    </li>
-
-    <li class="nav-item">
-      <a class="nav-link <?= (strpos($current_uri, 'users.php') !== false) ? 'active font-weight-bold' : '' ?>" 
-         href="/webbanhang/admin/users.php">
-        <i class="fas fa-user-friends mr-2"></i> Người dùng (user)
+        <i class="fas fa-shopping-bag mr-2"></i> Đơn hàng
       </a>
     </li>
   </ul>
 
-  <!-- NHÓM ADMIN (Chỉ hiển thị cho role_id = 1) -->
-  <?php if ($current_role === 1): ?>
-    <div class="menu-header mt-3">Admin</div>
-    <ul class="nav flex-column mb-4">
+  <!-- NHÓM QUẢN TRỊ NỘI BỘ (Chỉ hiển thị cho Admin) -->
+  <?php if ($is_admin): ?>
+    <div class="menu-header mt-3">Quản trị</div>
+    <ul class="nav flex-column">
       <li class="nav-item">
-        <a class="nav-link <?= (strpos($current_uri, '/staff/') !== false || strpos($current_uri, '/user/') !== false) ? 'active font-weight-bold' : '' ?>" 
+        <a class="nav-link <?= (strpos($current_uri, '/staff/') !== false) ? 'active font-weight-bold' : '' ?>" 
            href="/webbanhang/admin/staff/index.php">
-          <i class="fas fa-user-tie mr-2"></i> Nhân viên 
+          <i class="fas fa-user-tie mr-2"></i> Nhân viên & Quản trị
         </a>
       </li>
+      <li class="nav-item">
+      <a class="nav-link <?= (strpos($current_uri, '/revenue/') !== false) ? 'active font-weight-bold' : '' ?>" 
+         href="/webbanhang/admin/revenue/index.php">
+        <i class="fas fa-chart-line mr-2"></i> Báo cáo doanh thu
+      </a>
+    </li>
     </ul>
   <?php endif; ?>
 
-
-
-  <!-- NHÓM HỆ THỐNG -->
+  <!-- NHÓM TRANG WEB -->
   <div class="menu-header mt-3">Trang web</div>
   <ul class="nav flex-column mb-4">
-    <li class="nav-item">
-      <a class="nav-link <?= (strpos($current_uri, '/setting/') !== false) ? 'active font-weight-bold' : '' ?>" 
-         href="/webbanhang/admin/setting/index.php">
-        <i class="fas fa-cog mr-2"></i> Cài đặt
-      </a>
-    </li>
+    <!-- Cài đặt, Chính sách, Banner: Chỉ Admin mới thấy -->
+    <?php if ($is_admin): ?>
+      <li class="nav-item">
+        <a class="nav-link <?= (strpos($current_uri, '/setting/') !== false) ? 'active font-weight-bold' : '' ?>" 
+           href="/webbanhang/admin/setting/index.php">
+          <i class="fas fa-cog mr-2"></i> Cài đặt
+        </a>
+      </li>
 
-    <li class="nav-item">
-      <a class="nav-link <?= (strpos($current_uri, '/policy/') !== false) ? 'active font-weight-bold' : '' ?>" 
-         href="/webbanhang/admin/policy/index.php">
-        <i class="fas fa-file-alt mr-2"></i> Chính sách & Hỗ trợ
-      </a>
-    </li>
+      <li class="nav-item">
+        <a class="nav-link <?= (strpos($current_uri, '/policy/') !== false) ? 'active font-weight-bold' : '' ?>" 
+           href="/webbanhang/admin/policy/index.php">
+          <i class="fas fa-shield-alt mr-2"></i> Chính sách & Hỗ trợ
+        </a>
+      </li>
 
+      <li class="nav-item">
+        <a class="nav-link <?= (strpos($current_uri, '/banner/') !== false) ? 'active font-weight-bold' : '' ?>" 
+           href="/webbanhang/admin/banner/index.php">
+          <i class="fas fa-images mr-2"></i> Banner
+        </a>
+      </li>
+    <?php endif; ?>
+
+    <!-- Đánh giá / Phản hồi: Cả Admin và Nhân viên đều thấy để chăm sóc khách hàng -->
     <li class="nav-item">
-      <a class="nav-link <?= (strpos($current_uri, '/banner/') !== false) ? 'active font-weight-bold' : '' ?>" 
-         href="/webbanhang/admin/banner/index.php">
-        <i class="fas fa-file-alt mr-2"></i> Banner
+      <a class="nav-link <?= (strpos($current_uri, '/feedback/') !== false) ? 'active font-weight-bold' : '' ?>" 
+         href="/webbanhang/admin/feedback/index.php">
+        <i class="fas fa-comments mr-2"></i> Đánh giá (Feedback)
       </a>
     </li>
   </ul>

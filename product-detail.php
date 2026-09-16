@@ -3,10 +3,18 @@ date_default_timezone_set('Asia/Ho_Chi_Minh');
 session_start();
 require_once __DIR__ . '/database/dbhelper.php';
 
-// 1. Nhận ID sản phẩm từ URL
-$id = isset($_GET['id']) ? intval($_GET['id']) : 0;
-if ($id <= 0) {
-    header('Location: category.php');
+// 1. Nhận ID hoặc Slug từ URL
+$id   = isset($_GET['id']) ? intval($_GET['id']) : 0;
+$slug = trim($_GET['slug'] ?? '');
+
+$where_cond = "";
+if (!empty($slug)) {
+    $safe_slug  = str_replace("'", "\'", $slug);
+    $where_cond = "p.slug = '$safe_slug'";
+} elseif ($id > 0) {
+    $where_cond = "p.id = $id";
+} else {
+    header('Location: index.php');
     exit();
 }
 
@@ -14,17 +22,21 @@ if ($id <= 0) {
 $sql_prod = "SELECT p.*, 
                     c.id AS cat_id, 
                     c.name AS category_name, 
-                    b.name AS brand_name 
+                    c.slug AS category_slug,
+                    b.name AS brand_name,
+                    b.slug AS brand_slug
              FROM Product p 
              LEFT JOIN Category c ON p.category_id = c.id 
              LEFT JOIN Brand b ON p.brand_id = b.id 
-             WHERE p.id = $id AND p.deleted = 0";
+             WHERE $where_cond AND p.deleted = 0 LIMIT 1";
 $product = executeResult($sql_prod, true);
 
 if (!$product) {
-    header('Location: category.php');
+    header('Location: index.php');
     exit();
 }
+
+$id = intval($product['id']);
 
 // 3. Lấy danh sách các biến thể cấu hình chưa xóa
 $variants = executeResult("SELECT * FROM Product_Variant WHERE product_id = $id AND deleted = 0 ORDER BY price ASC");
@@ -41,18 +53,19 @@ $def_stock = $first_variant ? (int)$first_variant['stock_quantity'] : 0;
 $def_percent = ($def_price > 0 && $def_discount > 0) ? round(($def_discount / $def_price) * 100) : 0;
 
 $is_logged_in = isset($_SESSION['user']);
-$page_title = $product['title'];
+$page_title = $product['title'] . ' - NovaShop';
 include 'includes/header.php';
 ?>
 
+<base href="/webbanhang/">
+
 <main class="container my-4">
-  <!-- Breadcrumb điều hướng -->
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb bg-transparent p-0 small">
-      <li class="breadcrumb-item"><a href="index.php" class="text-muted">Trang chủ</a></li>
+      <li class="breadcrumb-item"><a href="index.php" class="text-muted text-decoration-none">Trang chủ</a></li>
       <?php if (!empty($product['category_name'])): ?>
         <li class="breadcrumb-item">
-          <a href="category.php?id=<?= $product['cat_id'] ?>" class="text-muted">
+          <a href="danh-muc/<?= htmlspecialchars($product['category_slug'] ?? $product['cat_id']) ?>" class="text-muted text-decoration-none">
             <?= htmlspecialchars($product['category_name']) ?>
           </a>
         </li>
@@ -63,36 +76,35 @@ include 'includes/header.php';
     </ol>
   </nav>
 
-  <!-- Khối Chi tiết sản phẩm chính -->
   <div class="card border-0 rounded-2xl shadow-soft p-4 p-md-5 bg-white mb-4">
     <div class="row">
-      <!-- Cột trái: Thư viện hình ảnh -->
       <div class="col-lg-6 mb-4 mb-lg-0">
         <?php 
-          $main_img = (!empty($product['thumbnail']) && file_exists($product['thumbnail'])) 
-                      ? htmlspecialchars($product['thumbnail']) 
-                      : 'https://via.placeholder.com/600x600?text=No+Image';
+          $raw_main = $product['thumbnail'];
+          $main_img = (!empty($raw_main) && file_exists(__DIR__ . '/' . ltrim($raw_main, '/'))) 
+                      ? '/webbanhang/' . ltrim($raw_main, '/') 
+                      : ((!empty($raw_main) && strpos($raw_main, 'http') === 0) ? $raw_main : 'https://via.placeholder.com/600x600?text=No+Image');
         ?>
         <div class="rounded-2xl overflow-hidden mb-3 border text-center bg-white p-3 d-flex align-items-center justify-content-center" style="min-height: 400px;">
-          <img id="mainProductImg" src="<?= $main_img ?>" 
+          <img id="mainProductImg" src="<?= htmlspecialchars($main_img) ?>" 
                class="img-fluid" style="max-height: 380px; object-fit: contain;" 
                alt="<?= htmlspecialchars($product['title']) ?>">
         </div>
 
-        <!-- Thumbnails xem trước -->
         <div class="d-flex flex-wrap" style="gap: 8px;">
-          <!-- Ảnh thumbnail chính -->
-          <img src="<?= $main_img ?>" 
+          <img src="<?= htmlspecialchars($main_img) ?>" 
                class="img-thumbnail rounded-lg thumb-gallery-item active-thumb" 
                style="width: 70px; height: 70px; object-fit: contain; cursor: pointer;" 
                onclick="changeMainImg(this.src, this)">
 
-          <!-- Danh sách ảnh trong Galery -->
           <?php foreach ($galleries as $gal): 
-            $gal_src = (!empty($gal['thumbnail']) && file_exists($gal['thumbnail'])) ? htmlspecialchars($gal['thumbnail']) : '';
+            $raw_g = $gal['thumbnail'];
+            $gal_src = (!empty($raw_g) && file_exists(__DIR__ . '/' . ltrim($raw_g, '/'))) 
+                       ? '/webbanhang/' . ltrim($raw_g, '/') 
+                       : ((!empty($raw_g) && strpos($raw_g, 'http') === 0) ? $raw_g : '');
             if (!$gal_src) continue;
           ?>
-            <img src="<?= $gal_src ?>" 
+            <img src="<?= htmlspecialchars($gal_src) ?>" 
                  class="img-thumbnail rounded-lg thumb-gallery-item" 
                  style="width: 70px; height: 70px; object-fit: contain; cursor: pointer;" 
                  onclick="changeMainImg(this.src, this)">
@@ -100,22 +112,19 @@ include 'includes/header.php';
         </div>
       </div>
 
-      <!-- Cột phải: Thông tin giá & Lựa chọn phiên bản -->
       <div class="col-lg-6 pl-lg-4">
         <form action="cart.php" method="POST" id="formAddToCart">
           <input type="hidden" name="action" value="add">
           <input type="hidden" name="product_id" value="<?= $product['id'] ?>">
           <input type="hidden" name="variant_id" id="selectedVariantId" value="<?= $first_variant['id'] ?? 0 ?>">
 
-          <!-- Tên sản phẩm & thương hiệu -->
           <div class="mb-2">
-            <span class="badge badge-pill badge-light border text-primary px-3 py-1 font-weight-bold">
+            <a href="thuong-hieu/<?= htmlspecialchars($product['brand_slug'] ?? '') ?>" class="badge badge-pill badge-light border text-primary px-3 py-1 font-weight-bold text-decoration-none">
               <?= htmlspecialchars($product['brand_name'] ?? 'Chính hãng') ?>
-            </span>
+            </a>
           </div>
           <h3 class="font-weight-bold text-dark mb-2"><?= htmlspecialchars($product['title']) ?></h3>
 
-          <!-- Đánh giá sao -->
           <div class="d-flex align-items-center mb-3">
             <span class="text-warning small mr-2">
               <i class="fas fa-star"></i>
@@ -128,7 +137,6 @@ include 'includes/header.php';
             <span class="text-muted small border-left pl-2">Đã bán 49.5k</span>
           </div>
 
-          <!-- Khung giá bán cập nhật theo cấu hình -->
           <div class="bg-light p-3 rounded-2xl mb-4 d-flex align-items-center flex-wrap">
             <span class="h3 font-weight-bold text-danger mb-0 mr-3" id="displaySalePrice">
               <?= $def_sale > 0 ? number_format($def_sale, 0, ',', '.') . ' ₫' : 'Liên hệ' ?>
@@ -141,7 +149,6 @@ include 'includes/header.php';
             </span>
           </div>
 
-          <!-- Danh sách cấu hình / biến thể cho người dùng chọn -->
           <?php if (!empty($variants)): ?>
             <div class="mb-4">
               <label class="font-weight-bold small text-dark d-block mb-2">Chọn phiên bản cấu hình:</label>
@@ -176,7 +183,6 @@ include 'includes/header.php';
             </div>
           <?php endif; ?>
 
-          <!-- Bộ tăng giảm số lượng & Tồn kho -->
           <div class="mb-4">
             <label class="font-weight-bold small text-dark d-block mb-2">Số lượng:</label>
             <div class="d-flex align-items-center">
@@ -195,7 +201,6 @@ include 'includes/header.php';
             </div>
           </div>
 
-          <!-- Nút Mua hàng & Thêm vào giỏ có kiểm tra Đăng nhập -->
           <div class="d-flex mb-4">
             <?php if ($is_logged_in): ?>
               <button type="submit" name="btn_add_cart" class="btn btn-outline-primary rounded-pill-custom px-4 py-2 font-weight-bold mr-3 shadow-sm" <?= $def_stock <= 0 ? 'disabled' : '' ?> id="btnAddToCart">
@@ -214,7 +219,6 @@ include 'includes/header.php';
             <?php endif; ?>
           </div>
 
-          <!-- Cam kết dịch vụ đi kèm -->
           <div class="border-top pt-3 text-muted small">
             <div class="row">
               <div class="col-6 mb-2"><i class="fas fa-check-circle text-success mr-2"></i>Bảo hành chính hãng 12 tháng</div>
@@ -228,9 +232,7 @@ include 'includes/header.php';
     </div>
   </div>
 
-  <!-- Khối Mô tả chi tiết & Thông số kỹ thuật -->
   <div class="row">
-    <!-- Cột trái: Mô tả sản phẩm lấy từ CSDL -->
     <div class="col-lg-8 mb-4">
       <div class="card border-0 rounded-2xl shadow-soft p-4 bg-white h-100">
         <h5 class="font-weight-bold text-dark border-bottom pb-3 mb-3">Đặc Điểm Nổi Bật & Mô Tả</h5>
@@ -240,7 +242,6 @@ include 'includes/header.php';
       </div>
     </div>
 
-    <!-- Cột phải: Bảng thông số kỹ thuật động theo biến thể -->
     <div class="col-lg-4 mb-4">
       <div class="card border-0 rounded-2xl shadow-soft p-4 bg-white h-100">
         <h5 class="font-weight-bold text-dark border-bottom pb-3 mb-3">Thông Số Kỹ Thuật</h5>
@@ -316,7 +317,6 @@ include 'includes/header.php';
 </style>
 
 <script>
-  // Hiển thị Toast thông báo yêu cầu đăng nhập ở góc trên bên phải
   function requireLoginNotice() {
     var oldToast = document.getElementById('login-alert-toast');
     if (oldToast) oldToast.remove();
@@ -347,13 +347,11 @@ include 'includes/header.php';
 
     document.body.appendChild(toastDiv);
 
-    // Kích hoạt hiệu ứng xuất hiện mượt
     setTimeout(function() {
       toastDiv.style.opacity = '1';
       toastDiv.style.transform = 'translateY(0)';
     }, 10);
 
-    // Tự động biến mất sau 6 giây
     setTimeout(function() {
       if (toastDiv && document.body.contains(toastDiv)) {
         toastDiv.style.opacity = '0';
@@ -363,14 +361,12 @@ include 'includes/header.php';
     }, 6000);
   }
 
-  // Đổi ảnh lớn khi bấm vào ảnh con
   function changeMainImg(src, thumbEl) {
     document.getElementById('mainProductImg').src = src;
     document.querySelectorAll('.thumb-gallery-item').forEach(el => el.classList.remove('active-thumb'));
     thumbEl.classList.add('active-thumb');
   }
 
-  // Chuyển đổi giữa các phiên bản cấu hình
   function selectVariant(btn) {
     document.querySelectorAll('.btn-variant-select').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
@@ -381,10 +377,8 @@ include 'includes/header.php';
     var discount = parseInt(btn.getAttribute('data-discount')) || 0;
     var stock = parseInt(btn.getAttribute('data-stock')) || 0;
 
-    // Gán ID biến thể vào hidden input để gửi form
     document.getElementById('selectedVariantId').value = vId;
 
-    // Cập nhật giá bán
     document.getElementById('displaySalePrice').textContent = sale + ' ₫';
     var oldPriceEl = document.getElementById('displayOldPrice');
     var badgeEl = document.getElementById('displayDiscountBadge');
@@ -401,7 +395,6 @@ include 'includes/header.php';
       badgeEl.classList.add('d-none');
     }
 
-    // Cập nhật trạng thái số lượng & nút mua
     var stockEl = document.getElementById('stockNotice');
     var btnAdd = document.getElementById('btnAddToCart');
     var btnBuy = document.getElementById('btnBuyNow');
@@ -420,7 +413,6 @@ include 'includes/header.php';
       inputQty.value = 1;
     }
 
-    // Cập nhật bảng thông số kỹ thuật bên phải
     updateSpecRow('specSku', 'rowSku', btn.getAttribute('data-sku'));
     updateSpecRow('specCpu', 'rowCpu', btn.getAttribute('data-cpu'));
     updateSpecRow('specRam', 'rowRam', btn.getAttribute('data-ram'));
@@ -441,7 +433,6 @@ include 'includes/header.php';
     }
   }
 
-  // Tăng giảm số lượng
   function adjustQuantity(delta) {
     var input = document.getElementById('inputQuantity');
     var val = parseInt(input.value) || 1;

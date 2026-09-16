@@ -17,7 +17,6 @@ $site_status     = $site_cfg['site_status'] ?? '1';
 $maintenance_msg = $site_cfg['maintenance_message'] ?? 'Website đang bảo trì nâng cấp, vui lòng quay lại sau!';
 $is_admin        = isset($_SESSION['user']) && in_array((int)($_SESSION['user']['role_id'] ?? 0), [1, 3]);
 
-// Nếu web tắt (status = 0) và không phải Admin -> Dừng và hiện màn hình bảo trì
 if ($site_status === '0' && !$is_admin) {
     ?>
     <!DOCTYPE html>
@@ -50,7 +49,7 @@ if ($site_status === '0' && !$is_admin) {
 }
 
 // 2. LẤY DANH MỤC SẢN PHẨM HỢP LỆ
-$nav_categories = executeResult("SELECT * FROM `Category` WHERE deleted = 0 ORDER BY name ASC");
+$nav_categories = executeResult("SELECT * FROM `Category` WHERE deleted = 0 ORDER BY id ASC");
 
 // 3. TÍNH SỐ LƯỢNG GIỎ HÀNG
 $cart_badge_count = 0;
@@ -63,6 +62,8 @@ if (isset($_SESSION['user']['id'])) {
         $cart_badge_count += intval($cItem['num'] ?? 0);
     }
 }
+
+$current_page = basename($_SERVER['PHP_SELF']);
 ?>
 <!DOCTYPE html>
 <html lang="vi">
@@ -71,14 +72,14 @@ if (isset($_SESSION['user']['id'])) {
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <title><?= htmlspecialchars($page_title ?? ($site_cfg['site_name'] ?? 'NovaShop') . ' - Cửa Hàng Công Nghệ Hiện Đại') ?></title>
 
-  <!-- Google Font: Inter -->
+  <!-- Thẻ BASE giúp định tuyến ảnh, link và CSS không bị lỗi khi dùng /danh-muc/phone -->
+  <base href="/webbanhang/">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-  <!-- Bootstrap 4 CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" crossorigin="anonymous">
-  <!-- Font Awesome 5 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" crossorigin="anonymous">
 
   <style>
@@ -94,35 +95,6 @@ if (isset($_SESSION['user']['id'])) {
     .shadow-soft {
       box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
     }
-    .shadow-hover {
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    .shadow-hover:hover {
-      transform: translateY(-6px);
-      box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.06);
-    }
-
-    .hero-banner {
-      height: 380px;
-      object-fit: cover;
-    }
-    .banner-overlay {
-      background: linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(15, 23, 42, 0.8) 100%);
-    }
-
-    .product-img-wrap {
-      overflow: hidden;
-      border-radius: 1.25rem 1.25rem 0 0;
-      position: relative;
-    }
-    .product-img {
-      height: 240px;
-      object-fit: cover;
-      transition: transform 0.4s ease;
-    }
-    .card:hover .product-img {
-      transform: scale(1.06);
-    }
 
     .btn-icon {
       width: 42px;
@@ -133,14 +105,6 @@ if (isset($_SESSION['user']['id'])) {
       border-radius: 50%;
     }
 
-    .badge-pill-soft {
-      padding: 0.35rem 0.75rem;
-      font-weight: 600;
-      font-size: 0.75rem;
-      border-radius: 50rem;
-    }
-
-    /* Đảm bảo dropdown hiển thị đẹp */
     .dropdown-menu {
       border: 1px solid #e2e8f0;
       box-shadow: 0 10px 25px rgba(0,0,0,0.08);
@@ -148,6 +112,62 @@ if (isset($_SESSION['user']['id'])) {
     .dropdown-item:active, .dropdown-item:hover {
       background-color: #f1f5f9;
       color: #2563eb;
+    }
+
+    /* Giao diện khung kết quả gợi ý tìm kiếm */
+    .search-suggest-box {
+      position: absolute;
+      top: 52px;
+      left: 0;
+      right: 0;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+      z-index: 9999;
+      display: none;
+      max-height: 420px;
+      overflow-y: auto;
+    }
+    .suggest-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 14px;
+      border-bottom: 1px solid #f1f5f9;
+      text-decoration: none !important;
+      color: #1e293b;
+      transition: background-color 0.15s ease;
+    }
+    .suggest-item:last-child {
+      border-bottom: none;
+    }
+    .suggest-item:hover {
+      background-color: #f8fafc;
+    }
+    .suggest-thumb {
+      width: 44px;
+      height: 44px;
+      object-fit: contain;
+      border-radius: 6px;
+      background: #f8fafc;
+      padding: 2px;
+      margin-right: 12px;
+      flex-shrink: 0;
+    }
+    .suggest-title {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #0f172a;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.3;
+    }
+    .suggest-price {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #dc2626;
+      margin-top: 2px;
     }
   </style>
 </head>
@@ -166,14 +186,19 @@ if (isset($_SESSION['user']['id'])) {
           </a>
         </div>
 
-        <!-- Thanh tìm kiếm -->
+        <!-- Thanh tìm kiếm tích hợp gợi ý live search -->
         <div class="col-md-6 d-none d-md-block">
-          <form class="position-relative" action="search.php" method="GET">
-            <input type="text" name="q" class="form-control rounded-pill-custom bg-light border-0 py-2 pl-4 pr-5 text-sm" placeholder="Tìm kiếm điện thoại, laptop, phụ kiện..." style="height: 46px;">
-            <button class="btn btn-primary rounded-circle position-absolute" style="top: 4px; right: 5px; width: 38px; height: 38px; padding: 0; background-color: #2563eb; border-color: #2563eb;" type="submit">
-              <i class="fas fa-search"></i>
-            </button>
-          </form>
+          <div class="position-relative" id="searchWrapper">
+            <form action="category.php" method="GET" id="searchForm" autocomplete="off">
+              <input type="text" name="search" id="inputSearchHeader" class="form-control rounded-pill-custom bg-light border-0 py-2 pl-4 pr-5 text-sm" placeholder="Tìm kiếm điện thoại, laptop, phụ kiện..." style="height: 46px;" value="<?= htmlspecialchars($_GET['search'] ?? '') ?>">
+              <button class="btn btn-primary rounded-circle position-absolute" style="top: 4px; right: 5px; width: 38px; height: 38px; padding: 0; background-color: #2563eb; border-color: #2563eb;" type="submit">
+                <i class="fas fa-search"></i>
+              </button>
+            </form>
+
+            <!-- Hộp danh sách sản phẩm gợi ý -->
+            <div id="searchSuggestBox" class="search-suggest-box"></div>
+          </div>
         </div>
 
         <!-- User & Giỏ hàng -->
@@ -212,17 +237,23 @@ if (isset($_SESSION['user']['id'])) {
 
         <div class="collapse navbar-collapse" id="productNav">
           <ul class="navbar-nav font-weight-medium">
-            <li class="nav-item active"><a class="nav-link text-primary font-weight-bold" href="index.php">Trang chủ</a></li>
+            <li class="nav-item <?= ($current_page === 'index.php') ? 'active' : '' ?>">
+              <a class="nav-link <?= ($current_page === 'index.php') ? 'text-primary font-weight-bold' : 'text-dark' ?>" href="index.php">Trang chủ</a>
+            </li>
             
-            <!-- Dropdown danh mục sản phẩm -->
-            <li class="nav-item dropdown">
+            <li class="nav-item dropdown <?= ($current_page === 'category.php') ? 'active' : '' ?>">
               <a class="nav-link dropdown-toggle text-dark font-weight-semibold" href="#" id="catDrop" data-toggle="dropdown">
                 Danh mục sản phẩm
               </a>
               <div class="dropdown-menu border-0 shadow-soft rounded-2xl p-2" aria-labelledby="catDrop" style="min-width: 220px;">
                 <?php if (!empty($nav_categories)): ?>
-                  <?php foreach ($nav_categories as $c): ?>
-                    <a class="dropdown-item rounded-pill-custom py-2" href="category.php?id=<?= $c['id'] ?>">
+                  <?php foreach ($nav_categories as $c): 
+                    // Tự động tạo link danh-muc/slug nếu có slug, ngược lại dùng category.php?id=...[cite: 10, 11]
+                    $cat_url = !empty($c['slug']) 
+                               ? "/webbanhang/danh-muc/" . urlencode($c['slug'])
+                               : "/webbanhang/category.php?id=" . $c['id'];
+                  ?>
+                    <a class="dropdown-item rounded-pill-custom py-2" href="<?= $cat_url ?>">
                       <i class="fas fa-angle-right text-primary mr-2"></i>
                       <?= htmlspecialchars($c['name']) ?>
                     </a>
@@ -232,17 +263,96 @@ if (isset($_SESSION['user']['id'])) {
                 <?php endif; ?>
 
                 <div class="dropdown-divider"></div>
-                <a class="dropdown-item rounded-pill-custom py-2 text-primary font-weight-bold" href="category.php">
+                <a class="dropdown-item rounded-pill-custom py-2 text-primary font-weight-bold" href="/webbanhang/category.php">
                   <i class="fas fa-th-large mr-2"></i>Xem tất cả
                 </a>
               </div>
             </li>
 
-            <li class="nav-item"><a class="nav-link text-secondary" href="products.php?filter=new">Sản phẩm mới</a></li>
-            <li class="nav-item"><a class="nav-link text-secondary" href="products.php?filter=sale">Ưu đãi đặc quyền</a></li>
-            <li class="nav-item"><a class="nav-link text-secondary" href="terms.php">Điều khoản & Chính sách</a></li>
+            <li class="nav-item <?= ($current_page === 'feedback.php') ? 'active' : '' ?>">
+              <a class="nav-link <?= ($current_page === 'feedback.php') ? 'text-primary font-weight-bold' : 'text-secondary' ?>" href="feedback.php">
+                <i class="far fa-comment-dots text-primary mr-1"></i> Phản hồi
+              </a>
+            </li>
           </ul>
         </div>
       </div>
     </nav>
   </header>
+
+  <!-- Script xử lý gợi ý sản phẩm tự động -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var searchInput = document.getElementById('inputSearchHeader');
+      var suggestBox  = document.getElementById('searchSuggestBox');
+      var debounceTimer;
+
+      if (!searchInput || !suggestBox) return;
+
+      searchInput.addEventListener('input', function() {
+        var query = this.value.trim();
+        clearTimeout(debounceTimer);
+
+        if (query.length === 0) {
+          suggestBox.innerHTML = '';
+          suggestBox.style.display = 'none';
+          return;
+        }
+
+        // Chờ 250ms sau khi dừng gõ để gọi ajax
+        debounceTimer = setTimeout(function() {
+          fetch('search.php?q=' + encodeURIComponent(query))
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+              if (!Array.isArray(data) || data.length === 0) {
+                suggestBox.innerHTML = '<div class="p-3 text-muted small text-center"><i class="fas fa-search mr-1"></i> Không tìm thấy sản phẩm phù hợp.</div>';
+                suggestBox.style.display = 'block';
+                return;
+              }
+
+              var html = '';
+              data.forEach(function(item) {
+                html += `
+                  <a href="${item.url}" class="suggest-item">
+                    <img src="${item.thumb}" class="suggest-thumb border" alt="${item.title}">
+                    <div style="flex: 1; overflow: hidden;">
+                      <div class="suggest-title">${item.title}</div>
+                      <div class="suggest-price">${item.price}</div>
+                    </div>
+                  </a>
+                `;
+              });
+
+              html += `
+                <div class="p-2 text-center bg-light border-top">
+                  <a href="category.php?search=${encodeURIComponent(query)}" class="small font-weight-bold text-primary text-decoration-none">
+                    Xem tất cả kết quả cho "${query}" &rarr;
+                  </a>
+                </div>
+              `;
+
+              suggestBox.innerHTML = html;
+              suggestBox.style.display = 'block';
+            })
+            .catch(function(err) {
+              suggestBox.style.display = 'none';
+            });
+        }, 250);
+      });
+
+      // Tự động đóng dropdown khi click chuột ra ngoài
+      document.addEventListener('click', function(e) {
+        var wrapper = document.getElementById('searchWrapper');
+        if (wrapper && !wrapper.contains(e.target)) {
+          suggestBox.style.display = 'none';
+        }
+      });
+
+      // Mở lại kết quả nếu click vào ô input và đã có nội dung
+      searchInput.addEventListener('focus', function() {
+        if (suggestBox.children.length > 0 && this.value.trim() !== '') {
+          suggestBox.style.display = 'block';
+        }
+      });
+    });
+  </script>

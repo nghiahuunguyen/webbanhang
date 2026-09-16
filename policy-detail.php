@@ -10,7 +10,7 @@ if (empty($slug)) {
 }
 
 $safe_slug = str_replace("'", "\'", $slug);
-$sql = "SELECT * FROM `Policy` WHERE `slug` = '$safe_slug' AND `is_active` = 1 LIMIT 1";
+$sql = "SELECT * FROM `Policy` WHERE `slug` = '$safe_slug' AND `is_active` = 1 AND `deleted` = 0 LIMIT 1";
 $policy = executeResult($sql, true);
 
 if (!$policy) {
@@ -19,24 +19,23 @@ if (!$policy) {
 }
 
 // Lấy danh sách các chính sách khác để hiển thị ở cột menu bên trái
-$all_policies = executeResult("SELECT `title`, `slug`, `group_type` FROM `Policy` WHERE `is_active` = 1 ORDER BY `sort_order` ASC");
+$all_policies = executeResult("SELECT `title`, `slug`, `group_type` FROM `Policy` WHERE `is_active` = 1 AND `deleted` = 0 ORDER BY `sort_order` ASC");
 
 $page_title = $policy['title'] . ' - NovaShop';
 include 'includes/header.php';
 ?>
 
 <main class="container my-5">
-  <!-- BREADCRUMB -->
   <nav aria-label="breadcrumb" class="mb-4">
     <ol class="breadcrumb bg-transparent p-0 small">
-      <li class="breadcrumb-item"><a href="index.php" class="text-muted">Trang chủ</a></li>
+      <li class="breadcrumb-item"><a href="index.php" class="text-muted text-decoration-none">Trang chủ</a></li>
       <li class="breadcrumb-item text-muted"><?= ($policy['group_type'] === 'policy') ? 'Chính sách' : 'Hỗ trợ' ?></li>
       <li class="breadcrumb-item active text-primary font-weight-bold" aria-current="page"><?= htmlspecialchars($policy['title']) ?></li>
     </ol>
   </nav>
 
   <div class="row">
-    <!-- CỘT TRÁI: DANH SÁCH CÁC CHÍNH SÁCH KHÁC -->
+    <!-- CỘT TRÁI -->
     <div class="col-lg-3 col-md-4 mb-4">
       <div class="card border-0 rounded-2xl shadow-soft p-3 bg-white position-sticky" style="top: 90px;">
         <h6 class="font-weight-bold text-dark px-3 pt-2 mb-2">Trung Tâm Trợ Giúp</h6>
@@ -44,7 +43,7 @@ include 'includes/header.php';
           <?php foreach ($all_policies as $p): 
               $is_cur = ($p['slug'] === $slug);
           ?>
-            <a href="policy-detail.php?slug=<?= htmlspecialchars($p['slug']) ?>" 
+            <a href="chinh-sach/<?= htmlspecialchars($p['slug']) ?>.html" 
                class="list-group-item list-group-item-action border-0 rounded-pill-custom py-2 px-3 small font-weight-bold <?= $is_cur ? 'text-primary bg-light' : 'text-secondary' ?>">
               <i class="fas fa-angle-right mr-2 <?= $is_cur ? 'text-primary' : 'text-muted' ?>"></i>
               <?= htmlspecialchars($p['title']) ?>
@@ -54,7 +53,7 @@ include 'includes/header.php';
       </div>
     </div>
 
-    <!-- CỘT PHẢI: NỘI DUNG CHI TIẾT BÀI VIẾT -->
+    <!-- CỘT PHẢI -->
     <div class="col-lg-9 col-md-8">
       <div class="card border-0 rounded-2xl shadow-soft p-4 p-md-5 bg-white">
         <h3 class="font-weight-bold text-dark mb-2"><?= htmlspecialchars($policy['title']) ?></h3>
@@ -62,7 +61,6 @@ include 'includes/header.php';
           <i class="far fa-clock mr-1"></i> Cập nhật lần cuối: <?= date('d/m/Y H:i', strtotime($policy['updated_at'])) ?>
         </p>
 
-        <!-- Nội dung chính sách hiển thị chuẩn định dạng -->
         <div class="policy-content" style="line-height: 1.8; font-size: 1rem; color: #334155;">
           <?= $policy['content'] ?>
         </div>

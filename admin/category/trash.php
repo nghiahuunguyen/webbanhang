@@ -1,4 +1,5 @@
 <?php 
+date_default_timezone_set('Asia/Ho_Chi_Minh');
 session_start();
 require_once('../../database/dbhelper.php');
 require_once('../check_role.php');
@@ -8,17 +9,31 @@ if (!isset($_SESSION['user']) || !in_array($_SESSION['user']['role_id'], [1, 3])
     header('Location: ../auth/login.php');
     die();
 }
+$page_title = 'Thùng Rác Danh Mục';
+
 $success_msg = $_SESSION['success_msg'] ?? '';
 unset($_SESSION['success_msg']);
 
+$limit = 5;
+$page = isset($_GET['page']) ? intval($_GET['page']) : 1;
+if ($page < 1) $page = 1;
+
+$countTrash = executeResult("SELECT COUNT(id) as total FROM Category WHERE deleted = 1", true);
+$total_records = intval($countTrash['total'] ?? 0);
+$total_pages = ceil($total_records / $limit);
+if ($total_pages > 0 && $page > $total_pages) $page = $total_pages;
+
+$start = ($page - 1) * $limit;
+if ($start < 0) $start = 0;
+
 // Lấy danh sách các danh mục nằm trong thùng rác (deleted = 1)
-$trash_list = executeResult("SELECT * FROM category WHERE deleted = 1 ORDER BY id DESC");
-$page_title = 'Thùng Rác Danh Mục';
+$trash_list = executeResult("SELECT * FROM Category WHERE deleted = 1 ORDER BY id DESC LIMIT $start, $limit");
+
 include '../layout/head.php'; 
 include '../layout/sidebar.php'; 
 ?>
 
-<!-- TOAST THÔNG BÁO GÓC PHẢI TRÊN (3 GIÂY TỰ BIẾN MẤT) -->
+<!-- TOAST THÔNG BÁO GÓC PHẢI TRÊN -->
 <?php if (!empty($success_msg)): ?>
   <div id="toast-wrapper" style="position: fixed; top: 20px; right: 20px; z-index: 99999; min-width: 300px; transition: all 0.5s ease;">
     <div class="toast show shadow-lg border-0" role="alert">
@@ -42,38 +57,40 @@ include '../layout/sidebar.php';
   <?php include '../layout/topbar.php'; ?>
 
   <div class="custom-card">
-    <div class="p-3 px-4 d-flex justify-content-between align-items-center border-bottom">
+    <div class="p-3 px-4 d-flex justify-content-between align-items-center border-bottom flex-wrap">
       <div>
         <h5 class="font-weight-bold mb-1 text-danger"><i class="fas fa-trash-alt mr-2"></i>Thùng Rác Danh Mục</h5>
-        <small class="text-muted">Danh sách các loại sản phẩm đã tạm xóa</small>
+        <small class="text-muted">Tổng cộng <?= $total_records ?> danh mục đã tạm xóa</small>
       </div>
-      <a href="index.php" class="btn btn-sm btn-secondary font-weight-bold">
+      <a href="index.php" class="btn btn-sm btn-secondary font-weight-bold mt-2 mt-md-0">
         <i class="fas fa-arrow-left mr-1"></i> Quay lại danh sách
       </a>
     </div>
 
     <div class="p-4 table-responsive">
-      <table class="table table-bordered table-hover mb-0">
+      <table class="table table-bordered table-hover mb-0 align-middle">
         <thead class="thead-light">
           <tr>
             <th width="70px" class="text-center align-middle">STT</th>
             <th class="align-middle">TÊN DANH MỤC</th>
+            <th class="align-middle">ĐƯỜNG DẪN (SLUG)</th>
             <th width="140px" class="text-center align-middle">TÁC VỤ</th>
           </tr>
         </thead>
         <tbody>
           <?php if (!empty($trash_list)): ?>
-            <?php $index = 1; foreach ($trash_list as $item): ?>
+            <?php $index = $start + 1; foreach ($trash_list as $item): ?>
               <tr>
-                <td class="text-center align-middle"><?= $index++ ?></td>
+                <td class="text-center align-middle font-weight-bold"><?= $index++ ?></td>
                 <td class="align-middle font-weight-bold text-dark"><?= htmlspecialchars($item['name']) ?></td>
+                <td class="align-middle">
+                  <code class="text-break small"><?= htmlspecialchars($item['slug'] ?? '') ?></code>
+                </td>
                 <td class="text-center align-middle">
                   <div class="d-inline-flex align-items-center">
-                    <!-- Nút khôi phục -->
                     <a href="restore.php?id=<?= $item['id'] ?>" class="btn btn-outline-success btn-sm mr-2" title="Khôi phục">
                       <i class="fas fa-undo"></i>
                     </a>
-                    <!-- Nút mở khung xác nhận xóa vĩnh viễn -->
                     <button type="button" 
                             class="btn btn-outline-danger btn-sm" 
                             title="Xóa vĩnh viễn" 
@@ -86,16 +103,50 @@ include '../layout/sidebar.php';
             <?php endforeach; ?>
           <?php else: ?>
             <tr>
-              <td colspan="3" class="text-center text-muted py-4 align-middle">Thùng rác trống.</td>
+              <td colspan="4" class="text-center text-muted py-4 align-middle">Thùng rác trống.</td>
             </tr>
           <?php endif; ?>
         </tbody>
       </table>
     </div>
+
+    <!-- PHÂN TRANG -->
+    <?php if ($total_pages > 1): ?>
+      <div class="card-footer bg-white border-top py-3">
+        <nav class="d-flex justify-content-center">
+          <ul class="pagination pagination-custom mb-0">
+            <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+              <a class="page-link" href="?page=<?= $page - 1 ?>"><i class="fas fa-chevron-left fa-xs"></i></a>
+            </li>
+            <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+              <li class="page-item <?= ($page == $i) ? 'active' : '' ?>">
+                <a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a>
+              </li>
+            <?php endfor; ?>
+            <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
+              <a class="page-link" href="?page=<?= $page + 1 ?>"><i class="fas fa-chevron-right fa-xs"></i></a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+      <style>
+        .pagination-custom { display: flex; align-items: center; gap: 6px; }
+        .pagination-custom .page-item .page-link {
+          min-width: 36px; height: 36px; padding: 0 10px;
+          display: inline-flex; align-items: center; justify-content: center;
+          font-weight: 600; font-size: 0.875rem; color: #4b5563;
+          background-color: #f3f4f6; border: 1px solid transparent;
+          border-radius: 50rem !important;
+        }
+        .pagination-custom .page-item.active .page-link {
+          background-color: #dc2626; border-color: #dc2626; color: #ffffff;
+        }
+      </style>
+    <?php endif; ?>
   </div>
 </main>
 
-<!-- MODAL XÁC NHẬN XÓA GIAO DIỆN HIỆN ĐẠI -->
+<!-- MODAL XÁC NHẬN XÓA -->
 <div class="modal fade" id="deleteModal" tabindex="-1" role="dialog" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered" role="document">
     <div class="modal-content border-0 shadow">
@@ -122,15 +173,12 @@ include '../layout/sidebar.php';
 
 <?php include '../layout/scripts.php'; ?>
 
-<!-- SCRIPT ĐIỀU KHIỂN MODAL VÀ TOAST -->
 <script>
-  // Mở popup xác nhận Bootstrap
   function confirmDelete(id) {
     document.getElementById('btnConfirmDelete').href = 'force_delete.php?id=' + id;
     $('#deleteModal').modal('show');
   }
 
-  // Tự động tắt thông báo sau 3 giây
   window.addEventListener('load', function() {
     var toastBox = document.getElementById('toast-wrapper');
     if (toastBox) {

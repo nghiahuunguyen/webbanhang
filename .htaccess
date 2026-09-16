@@ -1,9 +1,19 @@
 RewriteEngine On
 RewriteBase /webbanhang/
 
-# Không ghi đè nếu truy cập vào file hoặc thư mục vật lý thật
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
+# Bỏ qua không rewrite nếu là file vật lý hoặc thư mục có thật
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
 
-# Chuyển hướng: chinh-sach/ten-bai-viet.html -> policy-detail.php?slug=ten-bai-viet
+# 1. Điều khoản & Chính sách: chinh-sach/ten-bai-viet.html -> policy-detail.php?slug=ten-bai-viet
 RewriteRule ^chinh-sach/([^/]+)\.html$ policy-detail.php?slug=$1 [L,QSA]
+
+# 2. Chi tiết sản phẩm: san-pham/ten-san-pham.html -> product-detail.php?slug=ten-san-pham
+RewriteRule ^san-pham/([^/]+)\.html$ product-detail.php?slug=$1 [L,QSA]
+
+# 3. Danh mục sản phẩm: danh-muc/dien-thoai -> category.php?slug=dien-thoai
+RewriteRule ^danh-muc/([^/]+)$ category.php?slug=$1 [L,QSA]
+
+# 4. Thương hiệu: thuong-hieu/apple -> category.php?brand_slug=$1
+RewriteRule ^thuong-hieu/([^/]+)$ category.php?brand_slug=$1 [L,QSA]

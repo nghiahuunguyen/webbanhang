@@ -11,7 +11,7 @@ if (empty($message)) {
 $clean_msg = mb_strtolower($message, 'UTF-8');
 $clean_msg = preg_replace('/[?!.,;:]/', ' ', $clean_msg);
 
-// 1. ĐỌC THÔNG TIN HỆ THỐNG TỪ BẢNG System_Settings
+// 1. Đọc System_Settings
 $settings_raw = executeResult("SELECT `key_name`, `key_value` FROM `System_Settings`");
 $cfg = [];
 if (!empty($settings_raw)) {
@@ -23,9 +23,9 @@ $shop_name = $cfg['site_name'] ?? 'NovaShop';
 $hotline   = $cfg['hotline'] ?? '1900 6868';
 $address   = $cfg['address'] ?? '123 Đường ABC, Quận 1, TP. HCM';
 
-// 2. NHẬN DIỆN CÂU HỎI THÔNG TIN CỬA HÀNG (Địa chỉ, Hotline, Bảo hành)
+// 2. Nhận diện địa chỉ / hotline / bảo hành
 if (preg_match('/(địa chỉ|ở đâu|cửa hàng|showroom|chi nhánh|vị trí|shop ở)/i', $clean_msg)) {
-    echo json_encode(['reply' => "📍 Showroom <strong>{$shop_name}</strong> tại: <strong>{$address}</strong>.<br>⏰ Giờ mở cửa: 08:00 - 22:00 tất cả các ngày trong tuần. Rất hân hạnh được đón tiếp bạn!"]);
+    echo json_encode(['reply' => "📍 Showroom <strong>{$shop_name}</strong> tại: <strong>{$address}</strong>.<br>⏰ Giờ mở cửa: 08:00 - 22:00 tất cả các ngày trong tuần. Hân hạnh được đón tiếp bạn!"]);
     exit();
 }
 
@@ -40,8 +40,7 @@ if (preg_match('/(bảo hành|đổi trả|hư hỏng|lỗi kỹ thuật)/i', $c
     exit();
 }
 
-// 3. XỬ LÝ LỌC TỪ ĐỆM & TÁCH CỤM TỪ DÍNH LIỀN
-// Danh sách từ đệm cần loại bỏ
+// 3. Lọc từ đệm và tách dính chữ-số
 $stop_words = [
     'cho xin thông tin', 'cho mình thông tin', 'cho thông tin', 'xin thông tin', 
     'thông tin về', 'thông tin', 'cho xem', 'cho hỏi', 'giá bao nhiêu', 
@@ -54,12 +53,12 @@ foreach ($stop_words as $sw) {
     $extracted = str_replace($sw, ' ', $extracted);
 }
 
-// Tự động chèn khoảng trắng giữa chữ và số: "iphone15" -> "iphone 15", "s24ultra" -> "s 24 ultra"
+// Tách "iphone15" -> "iphone 15"
 $extracted = preg_replace('/([a-zA-Z]+)([0-9]+)/u', '$1 $2', $extracted);
 $extracted = preg_replace('/([0-9]+)([a-zA-Z]+)/u', '$1 $2', $extracted);
 $extracted = trim(preg_replace('/\s+/', ' ', $extracted));
 
-// 4. KIỂM TRA LỜI CHÀO / NẾU KHÁCH CHỈ GÕ CHUNG CHUNG
+// 4. Lời chào chung
 $greetings = ['xin chào', 'chào shop', 'chào bạn', 'hello', 'hi', 'alo', ''];
 if (in_array($extracted, $greetings)) {
     $cats = executeResult("SELECT name FROM Category WHERE deleted = 0 LIMIT 4");
@@ -72,7 +71,7 @@ if (in_array($extracted, $greetings)) {
     exit();
 }
 
-// 5. TÁCH TỪ KHÓA & TRUY VẤN CƠ SỞ DỮ LIỆU SẢN PHẨM
+// 5. Tách từ khóa tìm kiếm SQL
 $keywords = explode(' ', $extracted);
 $where_parts = [];
 
@@ -81,7 +80,6 @@ foreach ($keywords as $kw) {
     if (empty($kw)) continue;
     $safe_kw = str_replace("'", "\'", $kw);
     
-    // Tìm kiếm đồng thời trên Product, Brand, Category và Product_Variant
     $where_parts[] = "(p.title LIKE '%$safe_kw%' 
                       OR c.name LIKE '%$safe_kw%' 
                       OR b.name LIKE '%$safe_kw%' 
@@ -94,7 +92,7 @@ foreach ($keywords as $kw) {
 
 $where_sql = !empty($where_parts) ? implode(' AND ', $where_parts) : "p.title LIKE '%$extracted%'";
 
-$sql_search = "SELECT p.id, p.title, p.thumbnail, b.name AS brand_name,
+$sql_search = "SELECT p.id, p.title, p.slug, p.thumbnail, b.name AS brand_name,
                       MIN(v.price - v.discount) AS min_price,
                       MAX(v.price) AS max_old_price,
                       MAX(v.discount) AS max_discount,
@@ -104,19 +102,19 @@ $sql_search = "SELECT p.id, p.title, p.thumbnail, b.name AS brand_name,
                LEFT JOIN `Brand` b ON p.brand_id = b.id
                LEFT JOIN `Product_Variant` v ON p.id = v.product_id AND v.deleted = 0
                WHERE p.deleted = 0 AND ($where_sql)
-               GROUP BY p.id
+               GROUP BY p.id, p.title, p.slug, p.thumbnail, b.name
                ORDER BY p.id DESC
                LIMIT 4";
 
 $search_items = executeResult($sql_search);
 
-// 6. TRẢ VỀ KẾT QUẢ TÌM KIẾM CHO KHÁCH
 if (!empty($search_items)) {
     $html = "Dạ thông tin sản phẩm bạn đang quan tâm đây ạ:<br><br>";
     foreach ($search_items as $item) {
-        $img_src = (!empty($item['thumbnail']) && (file_exists($item['thumbnail']) || file_exists(__DIR__ . '/' . $item['thumbnail']))) 
-                   ? htmlspecialchars($item['thumbnail']) 
-                   : ((!empty($item['thumbnail']) && strpos($item['thumbnail'], 'http') === 0) ? $item['thumbnail'] : 'https://via.placeholder.com/60x60?text=No+Img');
+        $raw_t = $item['thumbnail'];
+        $img_src = (!empty($raw_t) && file_exists(__DIR__ . '/' . ltrim($raw_t, '/'))) 
+                   ? '/webbanhang/' . ltrim($raw_t, '/') 
+                   : ((!empty($raw_t) && strpos($raw_t, 'http') === 0) ? $raw_t : 'https://via.placeholder.com/60x60?text=No+Img');
         
         $min_p = (int)($item['min_price'] ?? 0);
         $price_str = ($min_p > 0) ? number_format($min_p, 0, ',', '.') . '₫' : 'Liên hệ';
@@ -127,11 +125,15 @@ if (!empty($search_items)) {
             ? "<span class='badge badge-success' style='font-size: 0.65rem;'>Còn hàng</span>" 
             : "<span class='badge badge-danger' style='font-size: 0.65rem;'>Tạm hết</span>";
 
+        $item_url = !empty($item['slug']) 
+                    ? "/webbanhang/san-pham/" . htmlspecialchars($item['slug']) . ".html" 
+                    : "/webbanhang/product-detail.php?id=" . $item['id'];
+
         $html .= "
         <div class='d-flex align-items-center mb-2 p-2 bg-white border rounded shadow-sm' style='gap: 10px;'>
             <img src='{$img_src}' style='width: 48px; height: 48px; object-fit: contain; background: #f8fafc; border-radius: 6px; padding: 2px;' class='border'>
             <div style='line-height: 1.3; flex: 1; overflow: hidden;'>
-                <a href='detail.php?id={$item['id']}' target='_blank' style='font-weight: 700; color: #0f172a; font-size: 0.82rem; text-decoration: none; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;'>
+                <a href='{$item_url}' target='_blank' style='font-weight: 700; color: #0f172a; font-size: 0.82rem; text-decoration: none; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;'>
                     " . htmlspecialchars($item['title']) . "
                 </a>
                 <div style='color: #dc2626; font-weight: 700; font-size: 0.85rem;' class='mt-1'>{$price_str}</div>
@@ -144,7 +146,6 @@ if (!empty($search_items)) {
     exit();
 }
 
-// 7. NẾU KHÔNG TÌM THẤY SẢN PHẨM KHỚP
 echo json_encode([
     'reply' => "Dạ <strong>{$shop_name}</strong> chưa tìm thấy sản phẩm khớp với từ khóa <strong>'" . htmlspecialchars($message) . "'</strong>.<br><br>" .
                "Bạn hãy thử nhập theo các gợi ý sau nhé:<br>" .
