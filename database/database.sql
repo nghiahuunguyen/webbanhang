@@ -235,3 +235,41 @@ CREATE TABLE IF NOT EXISTS `Product_Review` (
   `deleted` tinyint DEFAULT 0,
   CONSTRAINT `fk_review_product` FOREIGN KEY (`product_id`) REFERENCES `Product` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- 1. Bảng Chức năng/Module trong Admin
+CREATE TABLE IF NOT EXISTS `Permission` (
+  `id` int PRIMARY KEY AUTO_INCREMENT,
+  `code` varchar(50) NOT NULL UNIQUE,       -- Mã chức năng (category, product, order,...)
+  `name` varchar(100) NOT NULL,             -- Tên hiển thị tiếng Việt
+  `group_name` varchar(50) DEFAULT 'Khác'   -- Nhóm menu
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 2. Bảng nối: Vai trò có những quyền nào (Role_Permission)
+CREATE TABLE IF NOT EXISTS `Role_Permission` (
+  `role_id` int NOT NULL,
+  `permission_id` int NOT NULL,
+  PRIMARY KEY (`role_id`, `permission_id`),
+  CONSTRAINT `fk_rp_role` FOREIGN KEY (`role_id`) REFERENCES `Role` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_rp_perm` FOREIGN KEY (`permission_id`) REFERENCES `Permission` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 3. Dữ liệu mẫu các chức năng hệ thống đang có
+INSERT INTO `Permission` (`code`, `name`, `group_name`) VALUES
+('category', 'Quản lý Danh mục', 'Sản phẩm'),
+('brand', 'Quản lý Hãng / Thương hiệu', 'Sản phẩm'),
+('product', 'Quản lý Sản phẩm', 'Sản phẩm'),
+('customer', 'Quản lý Khách hàng', 'Khách & Đơn'),
+('order', 'Quản lý Đơn hàng', 'Khách & Đơn'),
+('feedback', 'Quản lý Phản hồi / Đánh giá', 'Hệ thống'),
+('setting', 'Cài đặt hệ thống', 'Trang web'),
+('policy', 'Chính sách & Hỗ trợ', 'Trang web'),
+('banner', 'Quản lý Banner slide', 'Trang web'),
+('revenue', 'Báo cáo doanh thu', 'Quản trị'),
+('staff', 'Quản lý nhân viên & Phân quyền', 'Quản trị')
+ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
+
+-- Cấp toàn bộ quyền cho Admin (role_id = 1)
+INSERT IGNORE INTO `Role_Permission` (`role_id`, `permission_id`)
+SELECT 1, id FROM `Permission`;
+
