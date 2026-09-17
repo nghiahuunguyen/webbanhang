@@ -224,3 +224,14 @@ UPDATE `Product` SET `slug` = CONCAT('san-pham-', `id`) WHERE `slug` IS NULL OR 
 ALTER TABLE `Product` MODIFY COLUMN `slug` varchar(350) NOT NULL, ADD UNIQUE (`slug`);
 ALTER TABLE `Product` 
 ADD COLUMN `is_featured` tinyint(1) NOT NULL DEFAULT 0 COMMENT '0: Bình thường, 1: Nổi bật' AFTER `deleted`;
+CREATE TABLE IF NOT EXISTS `Product_Review` (
+  `id` int PRIMARY KEY AUTO_INCREMENT,
+  `product_id` int NOT NULL,
+  `user_id` int DEFAULT NULL,
+  `fullname` varchar(100) NOT NULL,
+  `rating` tinyint NOT NULL DEFAULT 5,
+  `comment` text NOT NULL,
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `deleted` tinyint DEFAULT 0,
+  CONSTRAINT `fk_review_product` FOREIGN KEY (`product_id`) REFERENCES `Product` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

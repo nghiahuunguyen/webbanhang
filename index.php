@@ -30,17 +30,20 @@ function fixImgUrl($path) {
     return '/webbanhang/' . ltrim($path, '/');
 }
 
-// 3. Chỉ lấy đúng 8 sản phẩm Nổi bật (is_featured = 1)
+// 3. Chỉ lấy 8 sản phẩm Nổi bật + tính trung bình rating thật từ Product_Review
 $sql_featured = "SELECT p.id, p.title, p.slug, p.thumbnail, p.description,
                         c.name AS category_name, 
                         b.name AS brand_name,
                         COALESCE(MIN(v.price - v.discount), 0) AS min_sale_price,
                         COALESCE(MIN(v.price), 0) AS min_original_price,
-                        COALESCE(MAX(v.discount), 0) AS max_discount
+                        COALESCE(MAX(v.discount), 0) AS max_discount,
+                        COALESCE(AVG(r.rating), 5.0) AS avg_rating,
+                        COUNT(r.id) AS total_reviews
                  FROM `Product` p
                  LEFT JOIN `Category` c ON p.category_id = c.id
                  LEFT JOIN `Brand` b ON p.brand_id = b.id
                  LEFT JOIN `Product_Variant` v ON p.id = v.product_id AND v.deleted = 0
+                 LEFT JOIN `Product_Review` r ON p.id = r.product_id AND r.deleted = 0
                  WHERE p.deleted = 0 AND p.is_featured = 1
                  GROUP BY p.id, p.title, p.slug, p.thumbnail, p.description, c.name, b.name
                  ORDER BY p.id DESC
@@ -229,6 +232,9 @@ include 'includes/header.php';
               $key = $v['storage'] ?: ($v['ram'] ?: 'Bản');
               $spec_counts[$key] = ($spec_counts[$key] ?? 0) + 1;
           }
+
+          $rating_val = round((float)($prod['avg_rating'] ?? 5.0), 1);
+          $review_cnt = intval($prod['total_reviews'] ?? 0);
         ?>
           <div class="col-lg-3 col-md-4 col-6 mb-4">
             <div class="product-card border rounded p-3 bg-white h-100 d-flex flex-column" data-base-title="<?= htmlspecialchars($prod['title']) ?>">
@@ -296,10 +302,12 @@ include 'includes/header.php';
                 </div>
               </div>
 
+              <!-- Hiển thị sao và số lượt đánh giá thật -->
               <div class="d-flex align-items-center mt-2 pt-2 border-top small text-muted">
                 <i class="fas fa-star text-warning mr-1"></i>
-                <span class="font-weight-bold text-dark mr-1">4.9</span>
-                <span class="text-secondary">• <?= htmlspecialchars($prod['brand_name'] ?? 'Chính hãng') ?></span>
+                <span class="font-weight-bold text-dark mr-1"><?= number_format($rating_val, 1) ?></span>
+                <span class="text-muted mr-1">(<?= $review_cnt ?>)</span>
+                <span class="text-secondary ml-auto">• <?= htmlspecialchars($prod['brand_name'] ?? 'Chính hãng') ?></span>
               </div>
 
             </div>

@@ -124,17 +124,20 @@ if ($total_pages > 0 && $page > $total_pages) $page = $total_pages;
 $start = ($page - 1) * $limit;
 if ($start < 0) $start = 0;
 
-// 6. Truy vấn danh sách sản phẩm lấy thêm p.is_featured
+// 6. Truy vấn danh sách sản phẩm (kèm điểm sao & tổng lượt đánh giá)
 $sql_products = "SELECT p.id, p.title, p.slug, p.thumbnail, p.description, p.is_featured,
                         c.name AS category_name, 
                         b.name AS brand_name,
                         COALESCE(MIN(v.price - v.discount), 0) AS min_sale_price,
                         COALESCE(MIN(v.price), 0) AS min_original_price,
-                        COALESCE(MAX(v.discount), 0) AS max_discount
+                        COALESCE(MAX(v.discount), 0) AS max_discount,
+                        COALESCE(AVG(r.rating), 5.0) AS avg_rating,
+                        COUNT(r.id) AS total_reviews
                  FROM `Product` p
                  LEFT JOIN `Category` c ON p.category_id = c.id
                  LEFT JOIN `Brand` b ON p.brand_id = b.id
                  LEFT JOIN `Product_Variant` v ON p.id = v.product_id AND v.deleted = 0
+                 LEFT JOIN `Product_Review` r ON p.id = r.product_id AND r.deleted = 0
                  WHERE $where_sql
                  GROUP BY p.id, p.title, p.slug, p.thumbnail, p.description, p.is_featured, c.name, b.name
                  $order_by
@@ -153,7 +156,6 @@ if (!empty($product_ids)) {
     }
 }
 
-// Hàm format đường dẫn ảnh tránh lỗi thư mục ảo
 function fixImgUrl($path) {
     if (empty($path)) return 'https://via.placeholder.com/300x300?text=No+Image';
     if (strpos($path, 'http') === 0) return $path;
@@ -281,11 +283,13 @@ include 'includes/header.php';
             $key = $v['storage'] ?: ($v['ram'] ?: 'Bản');
             $spec_counts[$key] = ($spec_counts[$key] ?? 0) + 1;
         }
+
+        $rating_val = round((float)($prod['avg_rating'] ?? 5.0), 1);
+        $review_cnt = intval($prod['total_reviews'] ?? 0);
       ?>
         <div class="col-lg-3 col-md-4 col-6 mb-4">
           <div class="product-card border rounded p-3 bg-white h-100 d-flex flex-column position-relative" data-base-title="<?= htmlspecialchars($prod['title']) ?>">
             
-            <!-- Huy hiệu Nổi bật nếu is_featured = 1 -->
             <?php if (!empty($prod['is_featured']) && (int)$prod['is_featured'] === 1): ?>
               <span class="badge badge-featured position-absolute shadow-sm" style="top: 10px; left: 10px; z-index: 2;">
                 <i class="fas fa-fire mr-1"></i>Nổi bật
@@ -318,7 +322,7 @@ include 'includes/header.php';
                 <?php foreach ($variants as $idx => $v): 
                   $base_key = $v['storage'] ?: ($v['ram'] ?: 'Bản ' . ($idx + 1));
                   $btn_label = ($spec_counts[$base_key] > 1 && !empty($v['color'])) 
-                               ? $base_key . ' ' . $v['color'] 
+                               ? $base_key . ' ' . $v['color']
                                : $base_key;
 
                   $v_price = (int)$v['price'];
@@ -352,10 +356,12 @@ include 'includes/header.php';
               </div>
             </div>
 
+            <!-- Đánh giá số sao và số lượt đánh giá thật -->
             <div class="d-flex align-items-center mt-2 pt-2 border-top small text-muted">
               <i class="fas fa-star text-warning mr-1"></i>
-              <span class="font-weight-bold text-dark mr-1">4.9</span>
-              <span class="text-secondary">• Bảo hành chính hãng</span>
+              <span class="font-weight-bold text-dark mr-1"><?= number_format($rating_val, 1) ?></span>
+              <span class="text-muted mr-1">(<?= $review_cnt ?>)</span>
+              <span class="text-secondary ml-auto">• <?= htmlspecialchars($prod['brand_name'] ?? 'Chính hãng') ?></span>
             </div>
 
           </div>
@@ -551,7 +557,6 @@ include 'includes/header.php';
   .product-title { font-size: 0.92rem; line-height: 1.4; min-height: 38px; }
   .badge-spec { background-color: #f8fafc; border: 1px solid #e2e8f0; color: #475569; font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; font-weight: 500; }
   
-  /* Badge Nổi Bật */
   .badge-featured {
     background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
     color: #ffffff;
